@@ -1,5 +1,5 @@
 {
-  "name": "mcp-wire",
+  "name": "@vishmathpati/mcp-wire",
   "version": "0.1.0",
   "description": "Wire MCP servers into any AI coding tool from one paste",
   "type": "module",
