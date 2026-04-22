@@ -1,6 +1,6 @@
 {
   "name": "mcpbolt",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Wire MCP servers into any AI coding tool from one paste",
   "type": "module",
   "bin": {
