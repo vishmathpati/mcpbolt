@@ -26,6 +26,8 @@ Whenever you find a new MCP server, you have to manually translate and copy the 
 
 ## Install
 
+### CLI
+
 Run without installing (recommended):
 ```bash
 npx mcpbolt
@@ -37,6 +39,18 @@ npm install -g mcpbolt
 ```
 
 **Requirements:** Node.js 18+
+
+### Mac menu bar app (MCPBoltBar)
+
+A native macOS menu bar app for browsing, importing, and removing MCP servers without touching the terminal.
+
+```bash
+brew install --cask vishmathpati/mcpbolt/mcpboltbar
+```
+
+Or grab the zip directly from [Releases](https://github.com/vishmathpati/mcpbolt/releases).
+
+**Requirements:** macOS Monterey (12) or newer.
 
 ---
 
