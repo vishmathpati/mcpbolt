@@ -45,4 +45,22 @@ final class ServerStore: ObservableObject {
             }
         }
     }
+
+    /// Removes a server from one specific tool's config, then refreshes.
+    /// Returns (success, errorMessage). errorMessage is nil on success.
+    @discardableResult
+    func removeServer(toolID: String, name: String) -> (ok: Bool, error: String?) {
+        // TOML/YAML unsupported for native write — caller should check first
+        guard ConfigWriter.supportsNativeWrite(toolID: toolID) else {
+            return (false, "This app's config format (TOML/YAML) isn't supported yet. Remove it manually.")
+        }
+
+        do {
+            try ConfigWriter.removeServer(toolID: toolID, name: name)
+            refresh()
+            return (true, nil)
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
 }

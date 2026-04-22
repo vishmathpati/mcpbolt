@@ -151,7 +151,7 @@ struct ToolCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 Divider().padding(.leading, 60)
                 ForEach(filteredServers) { server in
-                    ServerRow(server: server, accent: accent)
+                    ServerRow(server: server, accent: accent, toolID: tool.toolID, toolLabel: tool.label)
                     if server.id != filteredServers.last?.id {
                         Divider().padding(.leading, 60).opacity(0.4)
                     }
@@ -167,9 +167,15 @@ struct ToolCard: View {
 struct ServerRow: View {
     let server: ServerEntry
     let accent: Color
+    let toolID: String
+    let toolLabel: String
 
+    @EnvironmentObject var store: ServerStore
     @State private var hovering = false
     @State private var confirming = false
+    @State private var errorMessage: String? = nil
+    @State private var showingError = false
+    @State private var removing = false
 
     private var kindLabel: String {
         switch server.transport {
@@ -187,6 +193,10 @@ struct ServerRow: View {
 
     private var kindColor: Color {
         server.transport == "stdio" ? Color.secondary : accent
+    }
+
+    private var nativeSupported: Bool {
+        ConfigWriter.supportsNativeWrite(toolID: toolID)
     }
 
     var body: some View {
@@ -219,25 +229,39 @@ struct ServerRow: View {
 
             // Delete button (always visible, subtle)
             Button(action: { confirming = true }) {
-                Image(systemName: "trash")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(hovering ? .red : .secondary)
-                    .padding(4)
+                if removing {
+                    ProgressView()
+                        .scaleEffect(0.45)
+                        .frame(width: 14, height: 14)
+                } else {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(hovering ? .red : .secondary)
+                        .padding(4)
+                }
             }
             .buttonStyle(.plain)
+            .disabled(removing)
             .onHover { hovering = $0 }
-            .help("Remove \(server.name)")
+            .help(nativeSupported ? "Remove \(server.name) from \(toolLabel)" : "This app's format isn't supported natively yet")
             .confirmationDialog(
-                "Remove “\(server.name)”?",
+                "Remove “\(server.name)” from \(toolLabel)?",
                 isPresented: $confirming,
                 titleVisibility: .visible
             ) {
-                Button("Remove…", role: .destructive) {
-                    ActionRunner.remove(serverName: server.name)
+                Button("Remove", role: .destructive) {
+                    performRemove()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Opens Terminal so you can pick which apps to remove it from.")
+                Text(nativeSupported
+                     ? "A backup of the config file is saved before removing."
+                     : "\(toolLabel) uses a config format we can't edit yet. Remove it manually.")
+            }
+            .alert("Couldn't remove server", isPresented: $showingError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "Unknown error.")
             }
         }
         .padding(.leading, 60)
@@ -246,5 +270,18 @@ struct ServerRow: View {
         .contentShape(Rectangle())
         .background(hovering ? accent.opacity(0.05) : Color.clear)
         .onHover { hovering = $0 }
+    }
+
+    private func performRemove() {
+        removing = true
+        // File I/O is fast enough to run on main actor. Store triggers refresh() on success.
+        Task { @MainActor in
+            let outcome = store.removeServer(toolID: toolID, name: server.name)
+            removing = false
+            if !outcome.ok {
+                errorMessage = outcome.error
+                showingError = true
+            }
+        }
     }
 }

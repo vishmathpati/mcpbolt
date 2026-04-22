@@ -114,6 +114,75 @@ enum ConfigWriter {
         }
     }
 
+    /// Removes a server from the tool's config. Throws on failure.
+    static func removeServer(
+        toolID: String,
+        name: String
+    ) throws {
+        guard let spec = ToolSpecs.spec(for: toolID) else {
+            throw WriteError.unsupportedFormat(toolID)
+        }
+
+        switch spec.kind {
+        case .json(let key):
+            try removeJson(path: spec.path, key: key, name: name)
+        case .jsonNested(let keys):
+            try removeJsonNested(path: spec.path, keys: keys, name: name)
+        case .toml, .yaml:
+            throw WriteError.unsupportedFormat(toolID)
+        }
+    }
+
+    // MARK: - JSON removers
+
+    private static func removeJson(
+        path: String,
+        key: String,
+        name: String
+    ) throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: path) else { return } // nothing to remove
+
+        var root: [String: Any] = loadJsonRoot(path: path)
+        var dict = root[key] as? [String: Any] ?? [:]
+        dict.removeValue(forKey: name)
+        root[key] = dict
+
+        try backupAndWrite(path: path, root: root)
+    }
+
+    private static func removeJsonNested(
+        path: String,
+        keys: [String],
+        name: String
+    ) throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: path) else { return }
+
+        let root: [String: Any] = loadJsonRoot(path: path)
+
+        // Walk into nested dicts
+        var chain: [[String: Any]] = [root]
+        for key in keys {
+            let current = chain.last!
+            let next = current[key] as? [String: Any] ?? [:]
+            chain.append(next)
+        }
+
+        // Remove from innermost
+        var innermost = chain.removeLast()
+        innermost.removeValue(forKey: name)
+
+        // Walk back up
+        for key in keys.reversed() {
+            var parent = chain.removeLast()
+            parent[key] = innermost
+            innermost = parent
+        }
+
+        try backupAndWrite(path: path, root: innermost)
+    }
+
     // MARK: - JSON writers
 
     private static func writeJson(
