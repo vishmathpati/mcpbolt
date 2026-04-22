@@ -46,6 +46,32 @@ final class ServerStore: ObservableObject {
         }
     }
 
+    /// Updates env values on a server across one or more tools.
+    /// Returns per-tool results. Refreshes on completion.
+    @discardableResult
+    func updateServerEnv(
+        name: String,
+        env: [String: String],
+        across toolIDs: [String]
+    ) -> (successes: [String], failures: [(toolID: String, message: String)]) {
+        var successes: [String] = []
+        var failures:  [(String, String)] = []
+        for toolID in toolIDs {
+            guard ConfigWriter.supportsNativeWrite(toolID: toolID) else {
+                failures.append((toolID, "Format not supported"))
+                continue
+            }
+            do {
+                try ConfigWriter.updateServerEnv(toolID: toolID, name: name, env: env)
+                successes.append(toolID)
+            } catch {
+                failures.append((toolID, error.localizedDescription))
+            }
+        }
+        refresh()
+        return (successes, failures)
+    }
+
     /// Removes a server from one specific tool's config, then refreshes.
     /// Returns (success, errorMessage). errorMessage is nil on success.
     @discardableResult

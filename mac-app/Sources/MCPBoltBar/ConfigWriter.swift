@@ -114,6 +114,87 @@ enum ConfigWriter {
         }
     }
 
+    /// Merges env values into an existing server's config, writing back.
+    /// Only updates env keys provided; other env keys are left alone.
+    /// Empty string values are treated as a delete of that env key.
+    static func updateServerEnv(
+        toolID: String,
+        name: String,
+        env: [String: String]
+    ) throws {
+        guard let spec = ToolSpecs.spec(for: toolID) else {
+            throw WriteError.unsupportedFormat(toolID)
+        }
+
+        switch spec.kind {
+        case .json(let key):
+            try updateEnvJson(path: spec.path, key: key, name: name, env: env)
+        case .jsonNested(let keys):
+            try updateEnvJsonNested(path: spec.path, keys: keys, name: name, env: env)
+        case .toml, .yaml:
+            throw WriteError.unsupportedFormat(toolID)
+        }
+    }
+
+    private static func updateEnvJson(
+        path: String,
+        key: String,
+        name: String,
+        env: [String: String]
+    ) throws {
+        var root = loadJsonRoot(path: path)
+        var dict = root[key] as? [String: Any] ?? [:]
+        guard var server = dict[name] as? [String: Any] else {
+            throw WriteError.readFailure("Server '\(name)' not found in \(path)")
+        }
+        var currentEnv = (server["env"] as? [String: Any]) ?? [:]
+        for (k, v) in env {
+            if v.isEmpty { currentEnv.removeValue(forKey: k) }
+            else         { currentEnv[k] = v }
+        }
+        server["env"] = currentEnv
+        dict[name]   = server
+        root[key]    = dict
+        try backupAndWrite(path: path, root: root)
+    }
+
+    private static func updateEnvJsonNested(
+        path: String,
+        keys: [String],
+        name: String,
+        env: [String: String]
+    ) throws {
+        let root = loadJsonRoot(path: path)
+
+        var chain: [[String: Any]] = [root]
+        for key in keys {
+            let current = chain.last!
+            let next = current[key] as? [String: Any] ?? [:]
+            chain.append(next)
+        }
+
+        var innermost = chain.removeLast()
+        guard var server = innermost[name] as? [String: Any] else {
+            throw WriteError.readFailure("Server '\(name)' not found in \(path)")
+        }
+        var currentEnv = (server["env"] as? [String: Any]) ?? [:]
+        for (k, v) in env {
+            if v.isEmpty { currentEnv.removeValue(forKey: k) }
+            else         { currentEnv[k] = v }
+        }
+        server["env"]   = currentEnv
+        innermost[name] = server
+
+        var up = innermost
+        for key in keys.reversed() {
+            var parent = chain.removeLast()
+            parent[key] = up
+            up = parent
+        }
+
+        try backupAndWrite(path: path, root: up)
+    }
+
     /// Removes a server from the tool's config. Throws on failure.
     static func removeServer(
         toolID: String,

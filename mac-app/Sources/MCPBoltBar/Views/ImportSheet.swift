@@ -323,6 +323,21 @@ struct ImportSheet: View {
                     }
                 }
 
+                // Per-server "next steps" cards
+                if !wins.isEmpty {
+                    sectionLabel("Next steps")
+                    VStack(spacing: 8) {
+                        ForEach(uniqueServerNames(wins), id: \.self) { name in
+                            NextStepsCard(
+                                serverName: name,
+                                installedTools: installedToolsForServer(name: name, wins: wins),
+                                envHints: envHints(for: name),
+                                refresh: { store.refresh() }
+                            )
+                        }
+                    }
+                }
+
                 Text("Restart each app to pick up the new server.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
@@ -463,6 +478,36 @@ struct ImportSheet: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
             stage = .done
         }
+    }
+
+    // MARK: - Helpers for the "Next steps" section
+
+    private func uniqueServerNames(_ results: [ImportResult]) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for r in results where seen.insert(r.serverName).inserted {
+            ordered.append(r.serverName)
+        }
+        return ordered
+    }
+
+    private func installedToolsForServer(name: String, wins: [ImportResult]) -> [NextStepsCard.InstalledTool] {
+        wins
+            .filter { $0.serverName == name }
+            .compactMap { r -> NextStepsCard.InstalledTool? in
+                guard let spec = ToolSpecs.spec(for: r.toolID) else { return nil }
+                return .init(id: r.toolID, toolID: r.toolID, toolLabel: r.toolLabel, path: spec.path)
+            }
+    }
+
+    /// Env keys pulled from the imported config for this server (used to
+    /// render inline "paste your key" fields).
+    private func envHints(for name: String) -> [String] {
+        guard let server = servers.first(where: { $0.name == name }),
+              let env = server.config["env"] as? [String: Any] else {
+            return []
+        }
+        return env.keys.sorted()
     }
 }
 
