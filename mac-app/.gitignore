@@ -1,5 +1,6 @@
 .build/
 MCPBoltBar.app/
+MCPBoltBar.zip
 *.o
 *.d
 *.dia

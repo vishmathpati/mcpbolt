@@ -5,8 +5,9 @@ import Combine
 
 @MainActor
 final class ServerStore: ObservableObject {
-    @Published var tools:     [ToolSummary] = []
-    @Published var isLoading: Bool          = false
+    @Published var tools:      [ToolSummary] = []
+    @Published var isLoading:  Bool          = false
+    @Published var searchText: String        = ""
 
     // Only detected tools, in display order
     var detectedTools: [ToolSummary] { tools.filter { $0.detected } }
@@ -25,6 +26,13 @@ final class ServerStore: ObservableObject {
 
     // Total unique servers across all detected tools
     var serverCount: Int { allServerNames.count }
+
+    // Case-insensitive substring filter. Empty query passes everything.
+    func matches(_ name: String) -> Bool {
+        let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        if q.isEmpty { return true }
+        return name.lowercased().contains(q)
+    }
 
     func refresh() {
         guard !isLoading else { return }
