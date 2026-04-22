@@ -2,7 +2,7 @@ import { ALL_TARGETS } from '../targets/index.ts'
 import type { ServerEntry } from '../core/reader.ts'
 import { c } from './display.ts'
 
-const ABBR: Record<string, string> = {
+const LABEL: Record<string, string> = {
   'claude-desktop': 'Claude Desktop',
   'claude-code':    'Claude Code',
   'cursor':         'Cursor',
@@ -13,6 +13,20 @@ const ABBR: Record<string, string> = {
   'continue':       'Continue',
   'gemini':         'Gemini',
   'roo':            'Roo',
+}
+
+// Two-letter abbreviations used as grid column headers
+const SHORT: Record<string, string> = {
+  'claude-desktop': 'CD',
+  'claude-code':    'CC',
+  'cursor':         'Cu',
+  'vscode':         'VS',
+  'codex':          'Cx',
+  'windsurf':       'Wi',
+  'zed':            'Ze',
+  'continue':       'Co',
+  'gemini':         'Ge',
+  'roo':            'Ro',
 }
 
 type ToolSummary = {
@@ -39,7 +53,7 @@ export function runList(): void {
     }
     tools.push({
       id: target.id,
-      label: ABBR[target.id] ?? target.name,
+      label: LABEL[target.id] ?? target.name,
       detected,
       servers: [...merged.values()],
     })
@@ -61,7 +75,7 @@ export function runList(): void {
     return
   }
 
-  // ── Per-tool view ──────────────────────────────────────────────────────────
+  // ── By tool ───────────────────────────────────────────────────────────────
   console.log(c.bold('  By tool'))
   console.log(c.dim('  ' + '─'.repeat(60)))
 
@@ -72,43 +86,66 @@ export function runList(): void {
       console.log(c.dim('    none'))
     } else {
       for (const s of tool.servers) {
-        const tag   = s.transport === 'stdio' ? c.dim('stdio') : c.cyan(s.transport)
+        const tag    = s.transport === 'stdio' ? c.dim('stdio') : c.cyan(s.transport)
+        // safe padding: compute extra spaces outside ANSI codes
+        const tagPad = ' '.repeat(Math.max(0, 5 - s.transport.length))
         const detail = s.transport === 'stdio'
           ? c.dim((`${s.command ?? ''} ${(s.args ?? []).join(' ')}`).trim().slice(0, 55))
           : c.dim((s.url ?? '').slice(0, 55))
-        console.log(`    ${c.bold(s.name.padEnd(24))} ${tag.padEnd(5)}  ${detail}`)
+        console.log(`    ${c.bold(s.name.padEnd(24))} ${tag}${tagPad}  ${detail}`)
       }
     }
   }
 
-  // ── Coverage view ──────────────────────────────────────────────────────────
+  // ── Coverage grid ─────────────────────────────────────────────────────────
+  //
+  // Each column is exactly COL visible chars. We never run .padEnd()
+  // on an ANSI string — spacing is done with plain literal spaces so
+  // terminal columns stay in sync regardless of escape code length.
+  //
+  //   server name (NW chars)  |  CD  CC  Cu  VS  Cx  Wi  Ze  Co  Ge  Ro
+  //   apifyvish               |   ●   ●   ●   ●   ·   ●   ●   ●   ●   ·
+  //   supabase                |   ·   ●   ●   ●   ●   ●   ●   ●   ●   ·
+
+  const COL = 4   // visible chars per grid column: 3 spaces + 1 symbol
+  const NW  = 26  // server name column width
+
   console.log()
   console.log()
-  console.log(c.bold('  By server') + c.dim('  (which tools have it)'))
+  console.log(c.bold('  Coverage') + c.dim('  ·  ● installed  ·  · not installed'))
   console.log(c.dim('  ' + '─'.repeat(60)))
   console.log()
 
-  const NAME_W = 26
+  // Legend — 5 tools per row so it never wraps
+  for (let i = 0; i < detectedTools.length; i += 5) {
+    const chunk = detectedTools.slice(i, i + 5)
+    const row = chunk
+      .map(t => c.dim((SHORT[t.id] ?? '??') + '=') + t.label)
+      .join(c.dim('  ·  '))
+    console.log('  ' + row)
+  }
+  console.log()
 
+  // Header row — blank name column + 2-char abbr right-aligned into COL-wide slot
+  const hdrCells = detectedTools
+    .map(t => (SHORT[t.id] ?? '??').padStart(COL))  // plain text, safe padStart
+    .join('')
+  console.log(c.dim('  ' + ' '.repeat(NW + 2) + hdrCells))
+
+  // Data rows
   for (const serverName of allServerNames) {
-    const toolsWithIt = detectedTools.filter(t => t.servers.some(s => s.name === serverName))
-    const toolsWithout = detectedTools.filter(t => !t.servers.some(s => s.name === serverName))
+    // padEnd on plain text — safe
+    const name = serverName.length > NW
+      ? serverName.slice(0, NW - 1) + '…'
+      : serverName.padEnd(NW)
 
-    const name = serverName.length > NAME_W
-      ? serverName.slice(0, NAME_W - 1) + '…'
-      : serverName.padEnd(NAME_W)
+    // Each cell: 3 literal spaces + 1 colored symbol = 4 visible chars
+    // (no padEnd on the colored char — spacing comes from the leading spaces)
+    const cells = detectedTools
+      .map(t => '   ' + (t.servers.some(s => s.name === serverName) ? c.green('●') : c.dim('·')))
+      .join('')
 
-    const have = toolsWithIt.map(t => c.green(t.label)).join(c.dim('  '))
-
-    let miss = ''
-    if (toolsWithout.length > 0) {
-      const MAX = 3
-      const shown = toolsWithout.slice(0, MAX).map(t => c.dim(t.label)).join(c.dim(', '))
-      const extra = toolsWithout.length > MAX ? c.dim(` +${toolsWithout.length - MAX} more`) : ''
-      miss = c.dim('  missing: ') + shown + extra
-    }
-
-    console.log(`  ${c.bold(name)}  ${have}${miss}`)
+    console.log('  ' + c.bold(name) + '  ' + cells)
   }
 
   console.log()
