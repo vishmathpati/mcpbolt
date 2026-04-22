@@ -2,26 +2,24 @@ import { ALL_TARGETS } from '../targets/index.ts'
 import type { ServerEntry } from '../core/reader.ts'
 import { c } from './display.ts'
 
-// Two-letter abbreviation for each target (no truncation ambiguity)
 const ABBR: Record<string, string> = {
-  'claude-desktop': 'CD',
-  'claude-code':    'CC',
-  'cursor':         'CU',
-  'vscode':         'VS',
-  'codex':          'CX',
-  'windsurf':       'WF',
-  'zed':            'ZD',
-  'continue':       'CT',
-  'gemini':         'GM',
-  'roo':            'RC',
+  'claude-desktop': 'Claude Desktop',
+  'claude-code':    'Claude Code',
+  'cursor':         'Cursor',
+  'vscode':         'VS Code',
+  'codex':          'Codex',
+  'windsurf':       'Windsurf',
+  'zed':            'Zed',
+  'continue':       'Continue',
+  'gemini':         'Gemini',
+  'roo':            'Roo',
 }
 
 type ToolSummary = {
   id: string
-  label: string        // "Claude Desktop"
-  abbr: string         // "CD"
+  label: string
   detected: boolean
-  servers: ServerEntry[]  // merged across user+project scopes
+  servers: ServerEntry[]
 }
 
 export function runList(): void {
@@ -29,97 +27,83 @@ export function runList(): void {
   console.log(c.bold('  mcpbolt list') + c.dim(' — MCP servers across your tools'))
   console.log()
 
-  // Build one entry per logical tool (merge user + project server lists)
+  // Build one entry per logical tool (merge user + project scopes)
   const tools: ToolSummary[] = []
   for (const target of ALL_TARGETS) {
     const detected = target.detect()
-    const merged: Map<string, ServerEntry> = new Map()
+    const merged = new Map<string, ServerEntry>()
     if (detected) {
       for (const scope of target.scopes) {
-        for (const s of target.readServers(scope)) {
-          merged.set(s.name, s) // last scope wins (project overrides user if same name)
-        }
+        for (const s of target.readServers(scope)) merged.set(s.name, s)
       }
     }
     tools.push({
       id: target.id,
-      label: target.name,
-      abbr: ABBR[target.id] ?? target.id.slice(0, 2).toUpperCase(),
+      label: ABBR[target.id] ?? target.name,
       detected,
       servers: [...merged.values()],
     })
   }
 
   const detectedTools = tools.filter(t => t.detected)
+
+  // All unique server names, sorted by how many tools have them (most first)
   const allServerNames = [...new Set(detectedTools.flatMap(t => t.servers.map(s => s.name)))]
     .sort((a, b) => {
-      // Sort by how many tools have it (most common first)
-      const aCount = detectedTools.filter(t => t.servers.some(s => s.name === a)).length
-      const bCount = detectedTools.filter(t => t.servers.some(s => s.name === b)).length
-      return bCount - aCount
+      const ac = detectedTools.filter(t => t.servers.some(s => s.name === a)).length
+      const bc = detectedTools.filter(t => t.servers.some(s => s.name === b)).length
+      return bc - ac
     })
 
   if (allServerNames.length === 0) {
-    console.log(c.dim('  No MCP servers installed in any detected tool yet.'))
-    console.log(c.dim('  Run mcpbolt to install one.'))
+    console.log(c.dim('  No MCP servers installed yet. Run mcpbolt to install one.'))
     console.log()
     return
   }
 
   // ── Per-tool view ──────────────────────────────────────────────────────────
-  console.log(c.bold('  Installed servers by tool'))
-  console.log()
+  console.log(c.bold('  By tool'))
+  console.log(c.dim('  ' + '─'.repeat(60)))
 
   for (const tool of detectedTools) {
-    console.log(`  ${c.bold(tool.label)}`)
-
+    console.log()
+    console.log(`  ${c.bold(tool.label)}  ${c.dim(tool.servers.length + ' server' + (tool.servers.length !== 1 ? 's' : ''))}`)
     if (tool.servers.length === 0) {
-      console.log(c.dim('    — none'))
+      console.log(c.dim('    none'))
     } else {
       for (const s of tool.servers) {
-        const transport = c.cyan(s.transport.padEnd(5))
+        const tag   = s.transport === 'stdio' ? c.dim('stdio') : c.cyan(s.transport)
         const detail = s.transport === 'stdio'
-          ? c.dim(`${s.command ?? ''} ${(s.args ?? []).join(' ')}`.trim().slice(0, 60))
-          : c.dim((s.url ?? '').slice(0, 60))
-        console.log(`    ${s.name.padEnd(26)} ${transport}  ${detail}`)
+          ? c.dim((`${s.command ?? ''} ${(s.args ?? []).join(' ')}`).trim().slice(0, 55))
+          : c.dim((s.url ?? '').slice(0, 55))
+        console.log(`    ${c.bold(s.name.padEnd(24))} ${tag.padEnd(5)}  ${detail}`)
       }
     }
-    console.log()
   }
 
-  // ── Coverage matrix ────────────────────────────────────────────────────────
-  console.log(c.bold('  Server coverage matrix'))
+  // ── Coverage view ──────────────────────────────────────────────────────────
+  console.log()
+  console.log()
+  console.log(c.bold('  By server') + c.dim('  (which tools have it)'))
+  console.log(c.dim('  ' + '─'.repeat(60)))
   console.log()
 
-  const COL = 4   // column width per tool
-  const NAME_W = 28
+  const NAME_W = 26
 
-  // Header: tool abbreviations
-  const headerCols = detectedTools.map(t => c.dim(t.abbr.padEnd(COL))).join('')
-  console.log('  ' + ' '.repeat(NAME_W) + headerCols)
-
-  // Divider
-  console.log(c.dim('  ' + '─'.repeat(NAME_W) + '─'.repeat(detectedTools.length * COL)))
-
-  // Rows
   for (const serverName of allServerNames) {
-    const name = serverName.length > NAME_W - 2
-      ? serverName.slice(0, NAME_W - 3) + '…'
-      : serverName
-    const cols = detectedTools.map(tool => {
-      const has = tool.servers.some(s => s.name === serverName)
-      return (has ? c.green('✓') : c.dim('·')).padEnd(COL)
-    }).join('')
-    console.log(`  ${name.padEnd(NAME_W)}${cols}`)
-  }
+    const toolsWithIt = detectedTools.filter(t => t.servers.some(s => s.name === serverName))
+    const toolsWithout = detectedTools.filter(t => !t.servers.some(s => s.name === serverName))
 
-  // Legend
-  console.log()
-  console.log(c.dim('  Legend:'))
-  const legendCols = detectedTools.map(t => `${c.bold(t.abbr)} ${t.label}`)
-  // Print legend in rows of 4
-  for (let i = 0; i < legendCols.length; i += 4) {
-    console.log('  ' + legendCols.slice(i, i + 4).map(s => s.padEnd(28)).join('  '))
+    const name = serverName.length > NAME_W
+      ? serverName.slice(0, NAME_W - 1) + '…'
+      : serverName.padEnd(NAME_W)
+
+    const have = toolsWithIt.map(t => c.green(t.label)).join(c.dim('  '))
+    const miss = toolsWithout.length > 0
+      ? c.dim('  missing: ') + toolsWithout.map(t => c.dim(t.label)).join(c.dim(', '))
+      : ''
+
+    console.log(`  ${c.bold(name)}  ${have}${miss}`)
   }
 
   console.log()
