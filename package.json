@@ -6,9 +6,16 @@
   "bin": {
     "mcp-wire": "./dist/cli/index.js"
   },
+  "files": [
+    "dist/cli/index.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "bun src/cli/index.ts",
     "build": "bun build src/cli/index.ts --outdir dist/cli --target node --minify",
+    "prepublishOnly": "bun run build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
