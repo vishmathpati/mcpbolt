@@ -4,35 +4,36 @@ import type { IR } from '../core/ir.ts'
 import type { Target, Scope } from '../targets/_base.ts'
 import { c } from './display.ts'
 
-// Read multi-line paste from stdin — collects until two consecutive blank lines or Ctrl+D
+// Read multi-line paste — no per-line prompt noise, just capture until Ctrl+D or double blank line
 export async function readPaste(): Promise<string> {
-  process.stdout.write(
-    c.dim('  Paste config below. Press Enter twice (or Ctrl+D) when done:\n\n  > ')
-  )
+  console.log(c.dim('  Paste your MCP config below, then press Ctrl+D when done:'))
+  console.log()
 
   const lines: string[] = []
   const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
 
   return new Promise((resolve) => {
     rl.on('line', (line) => {
-      // Two blank lines in a row = done
+      // Two consecutive blank lines = done
       if (line === '' && lines.length > 0 && lines[lines.length - 1] === '') {
         rl.close()
         return
       }
       lines.push(line)
-      if (lines.length > 1) process.stdout.write('  > ')
     })
 
     rl.on('close', () => {
-      // Strip trailing blank lines
-      while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
-      resolve(lines.join('\n'))
+      // Strip trailing blank lines and any stray prompt characters (> at start of line)
+      const cleaned = lines
+        .map((l) => l.replace(/^\s*>\s?/, '').trimEnd())
+        .filter((l, i, arr) => !(l === '' && i === arr.length - 1))
+      while (cleaned.length > 0 && cleaned[cleaned.length - 1] === '') cleaned.pop()
+      resolve(cleaned.join('\n'))
     })
   })
 }
 
-// Ask user to rename a server if needed
+// Ask user to confirm or rename the detected server name
 export async function promptServerName(detected: string): Promise<string> {
   return input({
     message: 'Server name',
@@ -45,7 +46,8 @@ export type TargetSelection = {
   scope: Scope
 }
 
-// Build grouped checkbox options — only shows installed tools, nothing pre-checked
+// Only show detected/installed tools. Nothing pre-checked.
+// Space = toggle, A = select all, Enter = confirm
 export async function promptTargets(targets: Target[]): Promise<TargetSelection[]> {
   const installedTargets = targets.filter((t) => t.detect())
 
@@ -61,7 +63,7 @@ export async function promptTargets(targets: Target[]): Promise<TargetSelection[
     for (const target of companyTargets) {
       for (const scope of target.scopes) {
         choices.push({
-          name: `${target.name} ${scope === 'user' ? '(global)' : '(this project)'}`,
+          name: `${c.bold(target.company)}  ${target.name} ${c.dim(scope === 'user' ? '(global)' : '(this project)')}`,
           value: `${target.id}:${scope}`,
           checked: false,
         })
@@ -69,8 +71,13 @@ export async function promptTargets(targets: Target[]): Promise<TargetSelection[
     }
   }
 
+  console.log()
+  console.log(c.dim(`  ${installedTargets.length} tools detected on this machine.`))
+  console.log(c.dim('  Space = toggle  ·  A = select all  ·  Enter = confirm'))
+  console.log()
+
   const selected = await checkbox({
-    message: `Select targets to install into ${c.dim(`(${choices.length} tools detected)`)}`,
+    message: 'Select targets to install into',
     choices,
     pageSize: 20,
   })
@@ -82,7 +89,7 @@ export async function promptTargets(targets: Target[]): Promise<TargetSelection[
   })
 }
 
-// If server has no env values filled in, prompt for them
+// If env vars look empty or placeholder, prompt for real values
 export async function promptEnvValues(ir: IR): Promise<IR> {
   if (!ir.env || Object.keys(ir.env).length === 0) return ir
 
@@ -112,9 +119,7 @@ export async function promptConfirm(): Promise<boolean> {
   return confirm({ message: 'Write files now?', default: true })
 }
 
-export async function promptContinueOnMultiple(
-  servers: IR[]
-): Promise<IR> {
+export async function promptContinueOnMultiple(servers: IR[]): Promise<IR> {
   if (servers.length === 1) return servers[0]!
 
   const choice = await select({
