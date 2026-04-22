@@ -177,12 +177,39 @@ final class ServerStore: ObservableObject {
         name: String,
         config: [String: Any]
     ) -> (ok: Bool, error: String?) {
+        replaceServerConfig(
+            toolID: toolID,
+            scope: .user,
+            projectRoot: nil,
+            name: name,
+            config: config
+        )
+    }
+
+    /// Scope-aware replace. Use `.project` + a `projectRoot` to write into
+    /// `<projectRoot>/.cursor/mcp.json` (or the equivalent for the tool).
+    /// Refreshes user-scope tool list after writing; project-scope reads are
+    /// always made fresh from disk by ProjectDetailView.
+    @discardableResult
+    func replaceServerConfig(
+        toolID: String,
+        scope: ConfigScope,
+        projectRoot: String?,
+        name: String,
+        config: [String: Any]
+    ) -> (ok: Bool, error: String?) {
         guard ConfigWriter.supportsNativeWrite(toolID: toolID) else {
             return (false, "This app's config format isn't supported yet.")
         }
         do {
-            try ConfigWriter.writeServer(toolID: toolID, name: name, config: config)
-            refresh()
+            try ConfigWriter.writeServer(
+                toolID: toolID,
+                scope: scope,
+                projectRoot: projectRoot,
+                name: name,
+                config: config
+            )
+            if scope == .user { refresh() }
             return (true, nil)
         } catch {
             return (false, error.localizedDescription)

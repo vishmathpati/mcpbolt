@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover:    NSPopover!
     private let store = ServerStore()
+    private let projectStore = ProjectStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide from Dock
@@ -64,11 +65,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupPopover() {
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 460, height: 600)
+        popover.contentSize = NSSize(width: 460, height: 720)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
             rootView: ContentView()
                 .environmentObject(store)
+                .environmentObject(projectStore)
         )
     }
 

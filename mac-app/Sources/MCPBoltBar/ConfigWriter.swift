@@ -247,18 +247,30 @@ enum ConfigWriter {
         return (before, after)
     }
 
-    /// Reads one server's full config from a tool's file, returned in claude-shape.
+    /// Reads one server's full config from a tool's file, returned in claude-shape (user scope).
     /// Returns nil if the tool's format is unsupported or the server isn't there.
     static func readServer(toolID: String, name: String) -> [String: Any]? {
-        guard let spec = ToolSpecs.spec(for: toolID) else { return nil }
+        readServer(toolID: toolID, scope: .user, projectRoot: nil, name: name)
+    }
 
-        let root: [String: Any]
+    /// Scope-aware single-server read.
+    static func readServer(
+        toolID: String,
+        scope: ConfigScope,
+        projectRoot: String?,
+        name: String
+    ) -> [String: Any]? {
+        guard let spec = ToolSpecs.spec(for: toolID, scope: scope, projectRoot: projectRoot) else { return nil }
+        return readServer(spec: spec, toolID: toolID, name: name)
+    }
+
+    private static func readServer(spec: ToolSpec, toolID: String, name: String) -> [String: Any]? {
         let raw: [String: Any]?
 
         switch spec.kind {
         case .json(let key):
-            root = loadJsonRoot(path: spec.path)
-            raw  = (root[key] as? [String: Any])?[name] as? [String: Any]
+            let root = loadJsonRoot(path: spec.path)
+            raw = (root[key] as? [String: Any])?[name] as? [String: Any]
 
         case .jsonNested(let keys):
             var cursor: [String: Any] = loadJsonRoot(path: spec.path)
@@ -277,6 +289,45 @@ enum ConfigWriter {
             entry = opencodeShapeToClaude(entry)
         }
         return entry
+    }
+
+    /// Reads every server declared in a tool's config file at the given scope.
+    /// Returns a `[name: config]` dictionary, with each config in claude-shape.
+    /// Empty dict if the file doesn't exist or the tool's format is unsupported.
+    static func readAllServers(
+        toolID: String,
+        scope: ConfigScope,
+        projectRoot: String?
+    ) -> [String: [String: Any]] {
+        guard let spec = ToolSpecs.spec(for: toolID, scope: scope, projectRoot: projectRoot),
+              FileManager.default.fileExists(atPath: spec.path)
+        else { return [:] }
+
+        let dict: [String: Any]
+        switch spec.kind {
+        case .json(let key):
+            dict = (loadJsonRoot(path: spec.path)[key] as? [String: Any]) ?? [:]
+        case .jsonNested(let keys):
+            var cursor: [String: Any] = loadJsonRoot(path: spec.path)
+            for k in keys { cursor = (cursor[k] as? [String: Any]) ?? [:] }
+            dict = cursor
+        case .toml, .yaml:
+            return [:]
+        }
+
+        var out: [String: [String: Any]] = [:]
+        for (name, value) in dict {
+            guard var cfg = value as? [String: Any] else { continue }
+            if toolID == "opencode" { cfg = opencodeShapeToClaude(cfg) }
+            out[name] = cfg
+        }
+        return out
+    }
+
+    /// Does the tool's config file exist at the given scope? Cheap check — no parsing.
+    static func configExists(toolID: String, scope: ConfigScope, projectRoot: String?) -> Bool {
+        guard let spec = ToolSpecs.spec(for: toolID, scope: scope, projectRoot: projectRoot) else { return false }
+        return FileManager.default.fileExists(atPath: spec.path)
     }
 
     // MARK: - Opencode shape translation
@@ -401,13 +452,24 @@ enum ConfigWriter {
         try backupAndWrite(path: path, root: up)
     }
 
-    /// Removes a server from the tool's config. Throws on failure.
+    /// Removes a server from the tool's config (user scope). Throws on failure.
     static func removeServer(
         toolID: String,
         name: String
     ) throws {
-        guard let spec = ToolSpecs.spec(for: toolID) else {
-            throw WriteError.unsupportedFormat(toolID)
+        try removeServer(toolID: toolID, scope: .user, projectRoot: nil, name: name)
+    }
+
+    /// Scope-aware remove. With `scope: .project` + a `projectRoot`, removes the
+    /// server from `<projectRoot>/.cursor/mcp.json` (or the equivalent per tool).
+    static func removeServer(
+        toolID: String,
+        scope: ConfigScope,
+        projectRoot: String?,
+        name: String
+    ) throws {
+        guard let spec = ToolSpecs.spec(for: toolID, scope: scope, projectRoot: projectRoot) else {
+            throw WriteError.unsupportedFormat(scope == .project ? "\(toolID) (project scope)" : toolID)
         }
 
         switch spec.kind {

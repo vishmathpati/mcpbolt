@@ -37,6 +37,19 @@ struct ContentView: View {
                     toolID: toolID,
                     toolLabel: toolLabel,
                     serverName: serverName,
+                    projectRoot: nil,
+                    onClose: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
+                            overlay.dismiss()
+                        }
+                    }
+                )
+            case .editServerInProject(let root, let toolID, let toolLabel, let serverName):
+                EditServerSheet(
+                    toolID: toolID,
+                    toolLabel: toolLabel,
+                    serverName: serverName,
+                    projectRoot: root,
                     onClose: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
                             overlay.dismiss()
@@ -238,6 +251,7 @@ struct ContentView: View {
         HStack(spacing: 6) {
             tabButton(title: "By App",   icon: "app.badge.checkmark", tag: 0)
             tabButton(title: "Coverage", icon: "tablecells.fill",     tag: 1)
+            tabButton(title: "Projects", icon: "folder.fill",         tag: 2)
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -282,7 +296,9 @@ struct ContentView: View {
 
     @ViewBuilder
     private var content: some View {
-        if store.detectedTools.isEmpty && !store.isLoading {
+        if tab == 2 {
+            ProjectsView()
+        } else if store.detectedTools.isEmpty && !store.isLoading {
             emptyState
         } else if tab == 0 {
             ByToolView()

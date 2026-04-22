@@ -9,7 +9,12 @@ struct EditServerSheet: View {
     let toolID: String
     let toolLabel: String
     let serverName: String
+    /// When non-nil, edits land in the project-scope config under this folder
+    /// (e.g. `<projectRoot>/.cursor/mcp.json`) instead of the user-scope file.
+    let projectRoot: String?
     let onClose: () -> Void
+
+    private var scope: ConfigScope { projectRoot == nil ? .user : .project }
 
     @State private var loaded = false
     @State private var errorMessage: String? = nil
@@ -221,7 +226,12 @@ struct EditServerSheet: View {
 
     private func loadInitial() {
         guard !loaded else { return }
-        let config = ConfigWriter.readServer(toolID: toolID, name: serverName) ?? [:]
+        let config = ConfigWriter.readServer(
+            toolID: toolID,
+            scope: scope,
+            projectRoot: projectRoot,
+            name: serverName
+        ) ?? [:]
         if let u = config["url"] as? String {
             transport = "http"
             url = u
@@ -275,7 +285,13 @@ struct EditServerSheet: View {
         }
         if !env.isEmpty { config["env"] = env }
 
-        let result = store.replaceServerConfig(toolID: toolID, name: serverName, config: config)
+        let result = store.replaceServerConfig(
+            toolID: toolID,
+            scope: scope,
+            projectRoot: projectRoot,
+            name: serverName,
+            config: config
+        )
         saving = false
         if result.ok {
             onClose()

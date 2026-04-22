@@ -11,6 +11,7 @@ final class OverlayPresenter: ObservableObject {
         case none
         case importSheet
         case editServer(toolID: String, toolLabel: String, serverName: String)
+        case editServerInProject(projectRoot: String, toolID: String, toolLabel: String, serverName: String)
         case copyToApps(toolID: String, toolLabel: String, serverName: String)
     }
 
