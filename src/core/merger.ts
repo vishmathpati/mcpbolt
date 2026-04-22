@@ -3,6 +3,49 @@ import path from 'node:path'
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
+// Strip // and /* */ comments while respecting string literals (JSONC support for Zed settings)
+function stripJsonComments(src: string): string {
+  let out = ''
+  let i = 0
+  let inString = false
+
+  while (i < src.length) {
+    const ch = src[i]!
+
+    // Track string boundaries (handle escaped quotes inside strings)
+    if (ch === '"' && (i === 0 || src[i - 1] !== '\\')) {
+      inString = !inString
+      out += ch
+      i++
+      continue
+    }
+
+    if (!inString) {
+      // Single-line comment
+      if (ch === '/' && src[i + 1] === '/') {
+        while (i < src.length && src[i] !== '\n') i++
+        continue
+      }
+      // Block comment
+      if (ch === '/' && src[i + 1] === '*') {
+        i += 2
+        while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++
+        i += 2
+        continue
+      }
+    }
+
+    out += ch
+    i++
+  }
+
+  return out
+}
+
+function parseJson(raw: string): Record<string, unknown> {
+  return JSON.parse(stripJsonComments(raw)) as Record<string, unknown>
+}
+
 export function backup(filePath: string): void {
   if (fs.existsSync(filePath)) {
     fs.copyFileSync(filePath, filePath + '.bak')
@@ -25,7 +68,7 @@ export function mergeJson(
 
   if (fs.existsSync(filePath)) {
     const raw = fs.readFileSync(filePath, 'utf-8').trim()
-    data = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
+    data = raw ? parseJson(raw) : {}
   }
 
   const servers = (data[key] ?? {}) as Record<string, unknown>
@@ -55,7 +98,7 @@ export function mergeJsonNested(
 
   if (fs.existsSync(filePath)) {
     const raw = fs.readFileSync(filePath, 'utf-8').trim()
-    data = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
+    data = raw ? parseJson(raw) : {}
   }
 
   // Walk/create the key path
