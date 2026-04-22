@@ -81,6 +81,19 @@ final class ConfigReader {
             return (fm.fileExists(atPath: "\(cwd)/.roo"),
                     readJsonServers(path: path, key: "mcpServers"))
 
+        case "opencode":
+            // sst/opencode — global config uses `mcp` key (not mcpServers).
+            let path = "\(home)/.config/opencode/opencode.json"
+            return (onPath("opencode") || fm.fileExists(atPath: "\(home)/.config/opencode"),
+                    readJsonServers(path: path, key: "mcp"))
+
+        case "cline":
+            // Cline is a VS Code extension; it writes to its own globalStorage dir.
+            let path = "\(home)/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+            return (fm.fileExists(atPath: path) ||
+                    fm.fileExists(atPath: "\(home)/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev"),
+                    readJsonServers(path: path, key: "mcpServers"))
+
         default:
             return (false, [])
         }

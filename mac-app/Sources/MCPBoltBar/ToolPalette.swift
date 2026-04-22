@@ -49,6 +49,14 @@ struct ToolPalette {
             color: Color(red: 0.98, green: 0.44, blue: 0.10),
             icon:  "antenna.radiowaves.left.and.right"
         ),
+        "opencode": Entry(
+            color: Color(red: 0.92, green: 0.58, blue: 0.16),
+            icon:  "curlybraces"
+        ),
+        "cline": Entry(
+            color: Color(red: 0.13, green: 0.65, blue: 0.82),
+            icon:  "scroll.fill"
+        ),
     ]
 
     static func color(for toolID: String) -> Color {

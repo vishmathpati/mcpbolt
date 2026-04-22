@@ -41,4 +41,6 @@ let ALL_TOOL_META: [(id: String, label: String, short: String)] = [
     ("continue",       "Continue",       "Co"),
     ("gemini",         "Gemini",         "Ge"),
     ("roo",            "Roo",            "Ro"),
+    ("opencode",       "opencode",       "Oc"),
+    ("cline",          "Cline",          "Cl"),
 ]

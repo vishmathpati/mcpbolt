@@ -63,6 +63,17 @@ enum ToolSpecs {
             return .init(id: toolID,
                          path: "\(home)/.continue/config.yaml",
                          kind: .yaml)
+        case "opencode":
+            // Note: opencode uses a slightly different per-server shape
+            // ({ type: "local"|"remote", command: [...] }) than Claude Desktop.
+            // Users should paste opencode-shape configs when targeting opencode.
+            return .init(id: toolID,
+                         path: "\(home)/.config/opencode/opencode.json",
+                         kind: .json(key: "mcp"))
+        case "cline":
+            return .init(id: toolID,
+                         path: "\(home)/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
+                         kind: .json(key: "mcpServers"))
         default:
             return nil
         }

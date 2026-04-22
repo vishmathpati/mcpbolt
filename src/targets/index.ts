@@ -9,6 +9,8 @@ import { zed } from './zed.ts'
 import { continueDev } from './continue.ts'
 import { gemini } from './gemini.ts'
 import { roo } from './roo.ts'
+import { opencode } from './opencode.ts'
+import { cline } from './cline.ts'
 
 export const ALL_TARGETS: Target[] = [
   claudeDesktop,
@@ -21,6 +23,8 @@ export const ALL_TARGETS: Target[] = [
   continueDev,
   gemini,
   roo,
+  opencode,
+  cline,
 ]
 
 export function getTarget(id: string): Target | undefined {
