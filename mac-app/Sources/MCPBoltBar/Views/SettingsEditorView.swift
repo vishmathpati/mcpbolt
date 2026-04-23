@@ -62,7 +62,6 @@ struct SettingsEditorView: View {
             .padding(.bottom, 4)
             .animation(.easeInOut(duration: 0.2), value: settings.savedRecently)
 
-            // File path hint
             HStack(spacing: 4) {
                 Image(systemName: "doc.text")
                     .font(.system(size: 9))
@@ -77,12 +76,6 @@ struct SettingsEditorView: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 6)
         }
-    }
-
-    private var shortSettingsPath: String {
-        let path = settings.settingsPath
-        let home = NSHomeDirectory()
-        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
 
     private func scopeButton(label: String, scope: SettingsStore.Scope) -> some View {
@@ -109,7 +102,7 @@ struct SettingsEditorView: View {
     @ViewBuilder
     private var projectPicker: some View {
         if projects.projects.isEmpty {
-            Text("No projects — add one in Projects tab")
+            Text("No projects — add in Projects tab")
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
         } else {
@@ -119,27 +112,17 @@ struct SettingsEditorView: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "folder")
-                        .font(.system(size: 10, weight: .medium))
-                    Text(selectedProjectName)
-                        .font(.system(size: 11, weight: .medium))
-                        .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .medium))
+                    Image(systemName: "folder").font(.system(size: 10, weight: .medium))
+                    Text(selectedProjectName).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium))
                 }
                 .foregroundColor(.primary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 8).padding(.vertical, 4)
                 .background(Color(NSColor.controlBackgroundColor))
                 .clipShape(RoundedRectangle(cornerRadius: 5))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(Color(NSColor.separatorColor).opacity(0.6), lineWidth: 0.5)
-                )
+                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color(NSColor.separatorColor).opacity(0.6), lineWidth: 0.5))
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         }
     }
 
@@ -150,17 +133,20 @@ struct SettingsEditorView: View {
         return proj.displayName
     }
 
+    private var shortSettingsPath: String {
+        let path = settings.settingsPath
+        let home = NSHomeDirectory()
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+    }
+
     // MARK: - Loading state
 
     private var loadingState: some View {
         VStack(spacing: 10) {
             ProgressView()
-            Text("Loading settings…")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
+            Text("Loading settings…").font(.system(size: 12)).foregroundColor(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity).padding(40)
     }
 
     // MARK: - Feature list
@@ -168,7 +154,6 @@ struct SettingsEditorView: View {
     private var featureList: some View {
         ScrollView {
             VStack(spacing: 0) {
-
                 // Section header
                 HStack(spacing: 5) {
                     Image(systemName: "bolt.fill")
@@ -186,9 +171,9 @@ struct SettingsEditorView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
 
-                // Cards
                 VStack(spacing: 6) {
 
+                    // MARK: Performance
                     groupHeader("Performance")
 
                     FeatureCard(
@@ -205,19 +190,30 @@ struct SettingsEditorView: View {
                         icon: "doc.text.fill",
                         iconColor: Color(red: 0.2, green: 0.5, blue: 0.95),
                         title: "Large File Reading",
-                        impact: "Handle files >2K lines — no truncation in big codebases",
+                        impact: "Handle files >2K lines without truncation",
                         jsonHint: "env.CLAUDE_CODE_MAX_READ_LINES=5000",
                         isOn: settings.largeFileReading,
                         onToggle: { settings.toggle(.largeFileReading) }
                     )
 
+                    FeatureCard(
+                        icon: "text.justify.leading",
+                        iconColor: Color(red: 0.2, green: 0.5, blue: 0.95),
+                        title: "High Output Limit",
+                        impact: "Allow up to 64K tokens per reply for long responses",
+                        jsonHint: "env.MAX_OUTPUT_TOKENS=64000",
+                        isOn: settings.highOutputLimit,
+                        onToggle: { settings.toggle(.highOutputLimit) }
+                    )
+
+                    // MARK: Interface
                     groupHeader("Interface")
 
                     FeatureCard(
                         icon: "rectangle.expand.vertical",
                         iconColor: Color(red: 0.45, green: 0.3, blue: 0.9),
                         title: "Fullscreen Terminal",
-                        impact: "Smooth scrolling, no flicker in the Claude Code TUI",
+                        impact: "Flicker-free alt-screen renderer with smooth scrollback",
                         jsonHint: "tui: \"fullscreen\"",
                         isOn: settings.fullscreenTerminal,
                         onToggle: { settings.toggle(.fullscreenTerminal) }
@@ -233,6 +229,37 @@ struct SettingsEditorView: View {
                         onToggle: { settings.toggle(.vimKeys) }
                     )
 
+                    FeatureCard(
+                        icon: "shield.checkered",
+                        iconColor: Color(red: 0.45, green: 0.3, blue: 0.9),
+                        title: "Stable Updates",
+                        impact: "Follow the stable channel (~1 week old, skips regressions)",
+                        jsonHint: "autoUpdatesChannel: \"stable\"",
+                        isOn: settings.stableUpdates,
+                        onToggle: { settings.toggle(.stableUpdates) }
+                    )
+
+                    FeatureCard(
+                        icon: "accessibility",
+                        iconColor: Color(red: 0.45, green: 0.3, blue: 0.9),
+                        title: "Reduced Motion",
+                        impact: "Kill spinners, shimmer, and flash effects",
+                        jsonHint: "prefersReducedMotion: true",
+                        isOn: settings.reducedMotion,
+                        onToggle: { settings.toggle(.reducedMotion) }
+                    )
+
+                    FeatureCard(
+                        icon: "minus.circle.fill",
+                        iconColor: Color(red: 0.45, green: 0.3, blue: 0.9),
+                        title: "Hide Spinner Tips",
+                        impact: "Cleaner spinner — no tips shown while Claude thinks",
+                        jsonHint: "spinnerTipsEnabled: false",
+                        isOn: settings.hideSpinnerTips,
+                        onToggle: { settings.toggle(.hideSpinnerTips) }
+                    )
+
+                    // MARK: History & Privacy
                     groupHeader("History & Privacy")
 
                     FeatureCard(
@@ -249,8 +276,8 @@ struct SettingsEditorView: View {
                         icon: "checkmark.seal.fill",
                         iconColor: Color(red: 0.15, green: 0.7, blue: 0.4),
                         title: "Clean Commits",
-                        impact: "No \"🤖 Generated with Claude\" watermark in git history",
-                        jsonHint: "includeCoAuthoredBy: false",
+                        impact: "Remove \"🤖 Generated with Claude\" watermark from git history",
+                        jsonHint: "attribution: {commit: \"\", pr: \"\"}",
                         isOn: settings.cleanCommits,
                         onToggle: { settings.toggle(.cleanCommits) }
                     )
@@ -269,12 +296,23 @@ struct SettingsEditorView: View {
                         icon: "memories.badge.minus",
                         iconColor: Color(red: 0.15, green: 0.7, blue: 0.4),
                         title: "Disable Auto Memory",
-                        impact: "Stop Claude from automatically saving memories across sessions",
+                        impact: "Stop Claude from auto-saving memories across sessions",
                         jsonHint: "autoMemoryEnabled: false",
                         isOn: settings.disableAutoMemory,
                         onToggle: { settings.toggle(.disableAutoMemory) }
                     )
 
+                    FeatureCard(
+                        icon: "timer.square",
+                        iconColor: Color(red: 0.15, green: 0.7, blue: 0.4),
+                        title: "Disable Session Recap",
+                        impact: "No one-line summary when you return to the terminal",
+                        jsonHint: "awaySummaryEnabled: false",
+                        isOn: settings.disableSessionRecap,
+                        onToggle: { settings.toggle(.disableSessionRecap) }
+                    )
+
+                    // MARK: Workflow
                     groupHeader("Workflow")
 
                     FeatureCard(
@@ -289,7 +327,7 @@ struct SettingsEditorView: View {
 
                     FeatureCard(
                         icon: "arrow.triangle.branch",
-                        iconColor: Color(red: 0.9, green: 0.4, blue: 0.15),
+                        iconColor: Color(red: 0.0, green: 0.65, blue: 0.75),
                         title: "Worktree Symlinks",
                         impact: "Reuse node_modules across git worktrees — no reinstalls",
                         jsonHint: "worktree.symlinkDirectories: [\"node_modules\"]",
@@ -297,6 +335,17 @@ struct SettingsEditorView: View {
                         onToggle: { settings.toggle(.worktreeSymlinks) }
                     )
 
+                    FeatureCard(
+                        icon: "eye.fill",
+                        iconColor: Color(red: 0.0, green: 0.65, blue: 0.75),
+                        title: "File Picker Shows All Files",
+                        impact: "@ autocomplete includes gitignored files — useful in monorepos",
+                        jsonHint: "respectGitignore: false",
+                        isOn: settings.filePickerShowAll,
+                        onToggle: { settings.toggle(.filePickerShowAll) }
+                    )
+
+                    // MARK: Thinking & Effort
                     groupHeader("Thinking & Effort")
 
                     FeatureCard(
@@ -304,7 +353,7 @@ struct SettingsEditorView: View {
                         iconColor: Color(red: 0.95, green: 0.75, blue: 0.0),
                         title: "Max Effort Mode",
                         impact: "Claude puts maximum effort into every response — no shortcuts",
-                        jsonHint: "env.CLAUDE_CODE_EFFORT_LEVEL=max",
+                        jsonHint: "effortLevel: \"xhigh\"",
                         isOn: settings.maxEffortMode,
                         onToggle: { settings.toggle(.maxEffortMode) }
                     )
@@ -312,21 +361,54 @@ struct SettingsEditorView: View {
                     FeatureCard(
                         icon: "brain.filled.head.profile",
                         iconColor: Color(red: 0.6, green: 0.25, blue: 0.9),
-                        title: "Extended Thinking",
-                        impact: "Deeper internal reasoning — shows thinking summaries, disables shortcuts",
-                        jsonHint: "env.MAX_THINKING_TOKENS=20000 + SHOW_EXTENDED_THINKING_SUMMARIES=1",
+                        title: "Always-On Thinking",
+                        impact: "Extended thinking enabled by default — shows reasoning summaries",
+                        jsonHint: "alwaysThinkingEnabled: true + showThinkingSummaries: true",
                         isOn: settings.extendedThinking,
                         onToggle: { settings.toggle(.extendedThinking) }
                     )
 
+                    // MARK: Global Preferences (~/.claude.json)
+                    globalConfigHeader
+
                     FeatureCard(
-                        icon: "text.justify.leading",
-                        iconColor: Color(red: 0.6, green: 0.25, blue: 0.9),
-                        title: "High Output Limit",
-                        impact: "Allow longer responses — up to 64K tokens per reply",
-                        jsonHint: "env.MAX_OUTPUT_TOKENS=64000",
-                        isOn: settings.highOutputLimit,
-                        onToggle: { settings.toggle(.highOutputLimit) }
+                        icon: "link",
+                        iconColor: Color(red: 0.4, green: 0.4, blue: 0.5),
+                        title: "Auto-Connect to IDE",
+                        impact: "Automatically connects when Claude Code starts from an external terminal",
+                        jsonHint: "~/.claude.json: autoConnectIde: true",
+                        isOn: settings.autoConnectIde,
+                        onToggle: { settings.toggle(.autoConnectIde) }
+                    )
+
+                    FeatureCard(
+                        icon: "doc.badge.arrow.up",
+                        iconColor: Color(red: 0.4, green: 0.4, blue: 0.5),
+                        title: "Response in External Editor",
+                        impact: "Prepend Claude's last reply when you open the editor (Ctrl+G)",
+                        jsonHint: "~/.claude.json: externalEditorContext: true",
+                        isOn: settings.responseInEditor,
+                        onToggle: { settings.toggle(.responseInEditor) }
+                    )
+
+                    FeatureCard(
+                        icon: "clock.badge.xmark",
+                        iconColor: Color(red: 0.4, green: 0.4, blue: 0.5),
+                        title: "Hide Turn Duration",
+                        impact: "Remove \"Cooked for 1m 6s\" messages after responses",
+                        jsonHint: "~/.claude.json: showTurnDuration: false",
+                        isOn: settings.hideTurnDuration,
+                        onToggle: { settings.toggle(.hideTurnDuration) }
+                    )
+
+                    FeatureCard(
+                        icon: "progress.indicator",
+                        iconColor: Color(red: 0.4, green: 0.4, blue: 0.5),
+                        title: "Disable Progress Bar",
+                        impact: "Hide the terminal progress bar (Ghostty/iTerm2/ConEmu)",
+                        jsonHint: "~/.claude.json: terminalProgressBarEnabled: false",
+                        isOn: settings.disableProgressBar,
+                        onToggle: { settings.toggle(.disableProgressBar) }
                     )
                 }
                 .padding(.horizontal, 12)
@@ -337,24 +419,20 @@ struct SettingsEditorView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 12)
 
-                // Error
                 if let err = settings.lastError {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(.red)
-                        Text(err)
-                            .font(.system(size: 11))
-                            .foregroundColor(.red)
-                            .lineLimit(2)
+                            .font(.system(size: 11)).foregroundColor(.red)
+                        Text(err).font(.system(size: 11)).foregroundColor(.red).lineLimit(2)
                         Spacer()
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 12).padding(.bottom, 8)
                 }
             }
         }
     }
+
+    // MARK: - Group headers
 
     private func groupHeader(_ title: String) -> some View {
         HStack {
@@ -364,7 +442,24 @@ struct SettingsEditorView: View {
                 .kerning(0.8)
             Spacer()
         }
-        .padding(.top, 6)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
+    }
+
+    private var globalConfigHeader: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("GLOBAL PREFERENCES")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.secondary.opacity(0.7))
+                    .kerning(0.8)
+                Spacer()
+            }
+            Text("These go to ~/.claude.json — not affected by the scope above")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary.opacity(0.55))
+        }
+        .padding(.top, 8)
         .padding(.bottom, 2)
     }
 
@@ -381,7 +476,6 @@ struct SettingsEditorView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.secondary)
                 }
-
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
                         Text("Hooks")
@@ -390,8 +484,7 @@ struct SettingsEditorView: View {
                         Text("ADVANCED")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4).padding(.vertical, 2)
                             .background(Color.secondary.opacity(0.1))
                             .clipShape(RoundedRectangle(cornerRadius: 3))
                             .kerning(0.5)
@@ -401,9 +494,7 @@ struct SettingsEditorView: View {
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
                 Spacer()
-
                 Image(systemName: "arrow.up.right.square")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary.opacity(0.7))
@@ -411,10 +502,7 @@ struct SettingsEditorView: View {
             .padding(12)
             .background(Color(NSColor.controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5)
-            )
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5))
         }
         .buttonStyle(.plain)
         .help("Opens settings.json in your default editor — add hooks manually")
