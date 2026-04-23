@@ -2,16 +2,24 @@ import Foundation
 import AppKit
 import SQLite3
 
+// MARK: - Discovery source
+
+enum DiscoverySource: Equatable {
+    case claudeCode   // ~/.claude.json → projects
+    case codexCLI     // ~/.codex/state_N.sqlite → threads.cwd
+    case filesystem   // filesystem walk of ~/Projects, ~/Developer, etc.
+}
+
 // MARK: - Discovered project model
 
-/// A project folder found by auto-scanning common dev directories on this Mac.
-/// Not persisted — rebuilt from disk on each scan.
+/// A project folder found by auto-scanning this Mac. Not persisted — rebuilt on each scan.
 struct DiscoveredProject: Identifiable, Equatable {
     let id: UUID
     let path: String
     let displayName: String
     let hasGit: Bool
     let detectedTools: [String]  // tool IDs whose config file exists in this folder
+    let source: DiscoverySource
 }
 
 // MARK: - Project model
@@ -197,7 +205,8 @@ final class ProjectStore: ObservableObject {
                 path:          canonical,
                 displayName:   Project.folderName(at: canonical),
                 hasGit:        hasGit,
-                detectedTools: tools
+                detectedTools: tools,
+                source:        .claudeCode
             ))
             seen.insert(canonical)
             if found.count >= 60 { break }
@@ -239,6 +248,9 @@ final class ProjectStore: ObservableObject {
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(stmt) }
 
+        // Codex creates session worktrees here — skip the whole dir
+        let codexSessionDir = (home as NSString).appendingPathComponent("Documents/Codex")
+
         var found: [DiscoveredProject] = []
 
         while sqlite3_step(stmt) == SQLITE_ROW {
@@ -247,19 +259,31 @@ final class ProjectStore: ObservableObject {
 
             guard !seen.contains(canonical) else { continue }
             guard !broadPaths.contains(canonical) else { continue }
+            // Skip Codex session worktrees (~/Documents/Codex/2026-04-22-...)
+            guard !canonical.hasPrefix(codexSessionDir) else { continue }
+            // Skip date-prefixed directories (another sign of a session worktree)
+            let folderName = Project.folderName(at: canonical)
+            let looksLikeSession = folderName.count > 10 &&
+                folderName.prefix(4).allSatisfy(\.isNumber) &&
+                folderName.dropFirst(4).hasPrefix("-")
+            guard !looksLikeSession else { continue }
 
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: canonical, isDirectory: &isDir), isDir.boolValue else { continue }
 
+            // Require git — real projects have it; session clones aren't useful here
             let hasGit = fm.fileExists(atPath: (canonical as NSString).appendingPathComponent(".git"))
+            guard hasGit else { continue }
+
             let tools  = detectedTools(at: canonical, fm: fm)
 
             found.append(DiscoveredProject(
                 id:            UUID(),
                 path:          canonical,
-                displayName:   Project.folderName(at: canonical),
-                hasGit:        hasGit,
-                detectedTools: tools
+                displayName:   folderName,
+                hasGit:        true,
+                detectedTools: tools,
+                source:        .codexCLI
             ))
             seen.insert(canonical)
             if found.count >= 40 { break }
@@ -332,13 +356,14 @@ final class ProjectStore: ObservableObject {
             path:          canonical,
             displayName:   Project.folderName(at: canonical),
             hasGit:        hasGit,
-            detectedTools: tools
+            detectedTools: tools,
+            source:        .filesystem
         )
     }
 
     nonisolated private static func detectedTools(at path: String, fm: FileManager) -> [String] {
         let checks: [(String, String)] = [
-            (".mcp.json",        "claude"),
+            (".mcp.json",        "claude-code"),
             (".cursor/mcp.json", "cursor"),
             (".vscode/mcp.json", "vscode"),
             (".roo/mcp.json",    "roo"),
@@ -346,6 +371,12 @@ final class ProjectStore: ObservableObject {
         return checks.compactMap { (rel, id) in
             fm.fileExists(atPath: (path as NSString).appendingPathComponent(rel)) ? id : nil
         }
+    }
+
+    /// Fast file-existence check: which project-scoped tools have configs in this folder.
+    /// Used for tab filtering without full config parsing.
+    func detectedToolIDs(for project: Project) -> [String] {
+        ProjectStore.detectedTools(at: project.path, fm: FileManager.default)
     }
 
     // MARK: - Counts (for the landing list)

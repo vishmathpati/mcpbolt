@@ -26,8 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let codexStore     = CodexSettingsStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Hide from Dock
-        NSApp.setActivationPolicy(.accessory)
+        // Show in Dock with indicator dot
+        NSApp.setActivationPolicy(.regular)
+        setDockIcon()
 
         setupStatusItem()
         setupPopover()
@@ -46,6 +47,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // it upgrades via brew automatically. Otherwise only alerts if the user
         // explicitly clicks "Check for Updates…"
         AppActions.checkForUpdates(silent: true)
+
+        // Close popover from inside views (e.g. "Open in Finder")
+        NotificationCenter.default.addObserver(
+            forName: .mcpboltClosePopover,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.popover.performClose(nil)
+        }
 
         // Open Dashboard notification (from ContentView button or menu)
         NotificationCenter.default.addObserver(
@@ -120,6 +130,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             userInfo: ["path": resolved]
         )
+    }
+
+    // Dock icon click → toggle popover
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        togglePopover()
+        return true
+    }
+
+    // MARK: - Dock icon
+
+    private func setDockIcon() {
+        let size: CGFloat = 512
+        let img = NSImage(size: NSSize(width: size, height: size))
+        img.lockFocus()
+
+        // Dark purple-black gradient background
+        let bg = NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: size, height: size),
+                               xRadius: 115, yRadius: 115)
+        if let gradient = NSGradient(
+            colors: [NSColor(red: 0.06, green: 0.04, blue: 0.14, alpha: 1),
+                     NSColor(red: 0.14, green: 0.10, blue: 0.28, alpha: 1)]
+        ) {
+            gradient.draw(in: bg, angle: 315)
+        } else {
+            NSColor(red: 0.08, green: 0.06, blue: 0.16, alpha: 1).setFill()
+            bg.fill()
+        }
+
+        // SF Symbol bolt in yellow
+        let symCfg = NSImage.SymbolConfiguration(pointSize: 290, weight: .black)
+        if let boltSym = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(symCfg) {
+            // Tint: fill a copy with yellow using sourceAtop compositing
+            let tinted = boltSym.copy() as! NSImage
+            tinted.lockFocus()
+            NSColor(red: 1.0, green: 0.85, blue: 0.0, alpha: 1).set()
+            NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
+            tinted.unlockFocus()
+
+            let bw = tinted.size.width, bh = tinted.size.height
+            tinted.draw(in: NSRect(x: (size - bw) / 2 + 4, y: (size - bh) / 2,
+                                   width: bw, height: bh))
+        }
+
+        img.unlockFocus()
+        NSApp.applicationIconImage = img
     }
 
     // MARK: - Status item
@@ -221,4 +277,5 @@ extension Notification.Name {
     static let mcpboltInstallURL    = Notification.Name("com.mcpbolt.installURL")
     static let mcpboltOpenProject   = Notification.Name("com.mcpbolt.openProject")
     static let mcpboltOpenDashboard = Notification.Name("com.mcpbolt.openDashboard")
+    static let mcpboltClosePopover  = Notification.Name("com.mcpbolt.closePopover")
 }

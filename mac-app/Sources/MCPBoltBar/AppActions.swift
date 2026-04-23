@@ -223,7 +223,12 @@ enum AppActions {
     // MARK: - Relaunch self
 
     static func relaunchSelf() {
-        let url = URL(fileURLWithPath: Bundle.main.bundlePath)
+        // Always launch from /Applications — brew upgrades the binary there,
+        // not at Bundle.main.bundlePath which points to the running (old) binary.
+        let appURL = URL(fileURLWithPath: "/Applications/MCPBoltBar.app")
+        let url = FileManager.default.fileExists(atPath: appURL.path)
+            ? appURL
+            : URL(fileURLWithPath: Bundle.main.bundlePath)
         let cfg = NSWorkspace.OpenConfiguration()
         cfg.activates = true
         NSWorkspace.shared.openApplication(at: url, configuration: cfg) { _, _ in

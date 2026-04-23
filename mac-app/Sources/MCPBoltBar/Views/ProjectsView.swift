@@ -1,18 +1,12 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Projects landing view
-//
-// Shows the list of recently-used project folders. Each row displays the
-// folder name, full path, per-tool server counts, and a ⋯ menu for rename
-// / remove / reveal. Tapping a row opens ProjectDetailView inside the same
-// tab (local NavigationStack-style state, no system navigation).
-
 struct ProjectsView: View {
     @EnvironmentObject var projects: ProjectStore
     @State private var selection: Project? = nil
     @State private var renamingID: UUID? = nil
     @State private var draftName: String = ""
+    @State private var selectedTab = "all"
 
     var body: some View {
         if let project = selection {
@@ -25,12 +19,16 @@ struct ProjectsView: View {
         }
     }
 
-    // MARK: Landing
+    // MARK: - Landing
 
     private var landing: some View {
         VStack(spacing: 0) {
             addBar
             Divider()
+            if availableTabs.count > 1 {
+                tabBar
+                Divider()
+            }
             let hasAny = !projects.projects.isEmpty || !projects.discovered.isEmpty
             if !hasAny && projects.isScanning {
                 scanningState
@@ -42,6 +40,8 @@ struct ProjectsView: View {
         }
     }
 
+    // MARK: - Top bar
+
     private var addBar: some View {
         HStack(spacing: 6) {
             if projects.isScanning {
@@ -52,7 +52,8 @@ struct ProjectsView: View {
                         .foregroundColor(.secondary)
                 }
             } else {
-                Text("\(projects.projects.count) project\(projects.projects.count == 1 ? "" : "s")")
+                let total = projects.projects.count + projects.discovered.count
+                Text("\(total) project\(total == 1 ? "" : "s")")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
@@ -79,24 +80,101 @@ struct ProjectsView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 7))
             }
             .buttonStyle(.plain)
-            .help("Add a project folder to manage its MCP configs")
+            .help("Add a project folder")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
     }
 
+    // MARK: - Tab bar
+
+    private var availableTabs: [String] {
+        var tabs = ["all"]
+        let tabCandidates = ["claude-code", "codex", "cursor", "vscode", "roo"]
+        for tab in tabCandidates {
+            if !filteredProjects(tab: tab).isEmpty || !filteredDiscovered(tab: tab).isEmpty {
+                tabs.append(tab)
+            }
+        }
+        return tabs
+    }
+
+    private var tabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(availableTabs, id: \.self) { tab in
+                    tabChip(tab)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func tabChip(_ tab: String) -> some View {
+        let isSelected = selectedTab == tab
+        return Button(action: { selectedTab = tab }) {
+            Text(tabLabel(tab))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(isSelected ? .white : .secondary)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(isSelected
+                              ? (tab == "all" ? AnyShapeStyle(ContentView.headerGrad) : AnyShapeStyle(ToolPalette.color(for: tab).opacity(0.85)))
+                              : AnyShapeStyle(Color.secondary.opacity(0.12)))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Filtered data
+
+    private func filteredProjects(tab: String) -> [Project] {
+        guard tab != "all" else { return projects.projects }
+        if tab == "codex" { return [] }  // added projects don't carry a codex source
+        return projects.projects.filter { projects.detectedToolIDs(for: $0).contains(tab) }
+    }
+
+    private func filteredDiscovered(tab: String) -> [DiscoveredProject] {
+        guard tab != "all" else { return projects.discovered }
+        switch tab {
+        case "claude-code": return projects.discovered.filter { $0.source == .claudeCode }
+        case "codex":       return projects.discovered.filter { $0.source == .codexCLI }
+        default:            return projects.discovered.filter { $0.detectedTools.contains(tab) }
+        }
+    }
+
+    // MARK: - List
+
     private var list: some View {
-        ScrollView {
+        let myProjects   = filteredProjects(tab: selectedTab)
+        let discovered   = filteredDiscovered(tab: selectedTab)
+        let showHeaders  = selectedTab == "all" && !discovered.isEmpty
+
+        return ScrollView {
             VStack(spacing: 6) {
-                ForEach(projects.projects) { project in
+                ForEach(myProjects) { project in
                     row(for: project)
                 }
-
-                if !projects.discovered.isEmpty {
+                if showHeaders && !myProjects.isEmpty {
                     discoveredSectionHeader
-                    ForEach(projects.discovered) { disc in
-                        discoveredRow(for: disc)
-                    }
+                } else if showHeaders {
+                    discoveredSectionHeader
+                }
+                if !discovered.isEmpty && !showHeaders && myProjects.isEmpty {
+                    // tab-filtered discovered with no added projects — no header needed
+                }
+                ForEach(discovered) { disc in
+                    discoveredRow(for: disc)
+                }
+                if myProjects.isEmpty && discovered.isEmpty {
+                    Text("No \(tabLabel(selectedTab)) projects found")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 30)
                 }
             }
             .padding(.horizontal, 12)
@@ -104,7 +182,7 @@ struct ProjectsView: View {
         }
     }
 
-    // MARK: Discovered section
+    // MARK: - Discovered section header
 
     private var discoveredSectionHeader: some View {
         HStack(spacing: 5) {
@@ -128,15 +206,17 @@ struct ProjectsView: View {
         .padding(.bottom, 2)
     }
 
+    // MARK: - Discovered row
+
     private func discoveredRow(for disc: DiscoveredProject) -> some View {
         HStack(alignment: .center, spacing: 10) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.10))
+                    .fill(sourceColor(disc.source).opacity(0.10))
                     .frame(width: 34, height: 34)
-                Image(systemName: "folder")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.secondary)
+                Image(systemName: sourceIcon(disc.source))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(sourceColor(disc.source))
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -150,9 +230,8 @@ struct ProjectsView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 HStack(spacing: 4) {
-                    if disc.hasGit {
-                        gitBadge
-                    }
+                    sourceBadge(disc.source)
+                    if disc.hasGit { gitBadge }
                     ForEach(disc.detectedTools, id: \.self) { toolID in
                         toolBadge(toolID: toolID)
                     }
@@ -176,6 +255,41 @@ struct ProjectsView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 9)
                 .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 0.5)
+        )
+    }
+
+    private func sourceColor(_ source: DiscoverySource) -> Color {
+        switch source {
+        case .claudeCode: return ToolPalette.color(for: "claude-code")
+        case .codexCLI:   return ToolPalette.color(for: "codex")
+        case .filesystem: return .secondary
+        }
+    }
+
+    private func sourceIcon(_ source: DiscoverySource) -> String {
+        switch source {
+        case .claudeCode: return "terminal.fill"
+        case .codexCLI:   return "sparkles"
+        case .filesystem: return "folder"
+        }
+    }
+
+    private func sourceBadge(_ source: DiscoverySource) -> some View {
+        let label: String
+        let color: Color
+        switch source {
+        case .claudeCode: label = "Claude"; color = ToolPalette.color(for: "claude-code")
+        case .codexCLI:   label = "Codex";  color = ToolPalette.color(for: "codex")
+        case .filesystem: return AnyView(EmptyView())
+        }
+        return AnyView(
+            Text(label)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(color)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(color.opacity(0.12))
+                .clipShape(Capsule())
         )
     }
 
@@ -207,17 +321,16 @@ struct ProjectsView: View {
         .clipShape(Capsule())
     }
 
-    // MARK: Row
+    // MARK: - Added project row
 
     private func row(for project: Project) -> some View {
-        let counts = projects.counts(for: project)
-        let total = counts.reduce(0) { $0 + $1.count }
+        let counts  = projects.counts(for: project)
+        let total   = counts.reduce(0) { $0 + $1.count }
         let missing = !project.exists
         let isRenaming = renamingID == project.id
 
         return Button(action: { open(project) }) {
             HStack(alignment: .center, spacing: 10) {
-                // Folder icon
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(missing ? Color.secondary.opacity(0.18) : Color.accentColor.opacity(0.14))
@@ -284,14 +397,8 @@ struct ProjectsView: View {
                 .fixedSize()
             }
             .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(Color(NSColor.controlBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 9)
-                    .stroke(Color(NSColor.separatorColor).opacity(0.4), lineWidth: 0.5)
-            )
+            .background(RoundedRectangle(cornerRadius: 9).fill(Color(NSColor.controlBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color(NSColor.separatorColor).opacity(0.4), lineWidth: 0.5))
             .opacity(missing ? 0.75 : 1)
         }
         .buttonStyle(.plain)
@@ -312,7 +419,7 @@ struct ProjectsView: View {
         .clipShape(Capsule())
     }
 
-    // MARK: Scanning + empty states
+    // MARK: - Scanning + empty states
 
     private var scanningState: some View {
         VStack(spacing: 10) {
@@ -329,13 +436,10 @@ struct ProjectsView: View {
         VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.accentColor.opacity(0.14), Color.accentColor.opacity(0.06)],
-                            startPoint: .topLeading,
-                            endPoint:   .bottomTrailing
-                        )
-                    )
+                    .fill(LinearGradient(
+                        colors: [Color.accentColor.opacity(0.14), Color.accentColor.opacity(0.06)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
                     .frame(width: 64, height: 64)
                 Image(systemName: "folder.fill.badge.plus")
                     .font(.system(size: 26))
@@ -348,7 +452,6 @@ struct ProjectsView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
-
             Button(action: addFolder) {
                 HStack(spacing: 5) {
                     Image(systemName: "plus.circle.fill")
@@ -368,7 +471,7 @@ struct ProjectsView: View {
         .padding(30)
     }
 
-    // MARK: Actions
+    // MARK: - Actions
 
     private func open(_ project: Project) {
         projects.touch(id: project.id)
@@ -383,7 +486,11 @@ struct ProjectsView: View {
     }
 
     private func revealInFinder(_ project: Project) {
-        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: project.path)])
+        // Close the popover first, then activate Finder
+        NotificationCenter.default.post(name: .mcpboltClosePopover, object: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: project.path)])
+        }
     }
 
     private func beginRename(_ project: Project) {
@@ -397,15 +504,27 @@ struct ProjectsView: View {
         draftName = ""
     }
 
+    // MARK: - Helpers
+
+    private func tabLabel(_ tab: String) -> String {
+        switch tab {
+        case "all":        return "All"
+        case "claude-code": return "Claude"
+        case "codex":      return "Codex"
+        case "cursor":     return "Cursor"
+        case "vscode":     return "VS Code"
+        case "roo":        return "Roo"
+        default:           return tab
+        }
+    }
+
     private func toolLabel(_ toolID: String) -> String {
         ALL_TOOL_META.first(where: { $0.id == toolID })?.label ?? toolID
     }
 
     private func shortPath(_ path: String) -> String {
         let home = NSHomeDirectory()
-        if path.hasPrefix(home) {
-            return "~" + path.dropFirst(home.count)
-        }
+        if path.hasPrefix(home) { return "~" + path.dropFirst(home.count) }
         return path
     }
 }
