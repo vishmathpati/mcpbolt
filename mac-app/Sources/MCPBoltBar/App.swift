@@ -34,8 +34,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         store.refresh()
 
-        // Silent update check on launch — shows an alert only if a newer
-        // version is available. Never bothers the user otherwise.
+        // On very first launch, open the popover so the user sees where the app lives.
+        if !UserDefaults.standard.bool(forKey: "mcpbolt.didShowWelcome") {
+            UserDefaults.standard.set(true, forKey: "mcpbolt.didShowWelcome")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+                self?.togglePopover()
+            }
+        }
+
+        // Silent update check — if autoUpdate is on and a newer version exists,
+        // it upgrades via brew automatically. Otherwise only alerts if the user
+        // explicitly clicks "Check for Updates…"
         AppActions.checkForUpdates(silent: true)
 
         // Open Dashboard notification (from ContentView button or menu)
@@ -176,6 +185,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(withTitle: "Open Dashboard", action: #selector(openDashboardFromMenu), keyEquivalent: "d")
         menu.addItem(NSMenuItem.separator())
+
+        let autoUpdateItem = NSMenuItem(title: "Auto Update", action: #selector(toggleAutoUpdateFromMenu), keyEquivalent: "")
+        autoUpdateItem.state = AppActions.autoUpdateEnabled ? .on : .off
+        menu.addItem(autoUpdateItem)
+        menu.addItem(NSMenuItem.separator())
+
         menu.addItem(withTitle: "Refresh", action: #selector(refreshFromMenu), keyEquivalent: "r")
         menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdatesFromMenu), keyEquivalent: "")
         menu.addItem(NSMenuItem.separator())
@@ -195,6 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func refreshFromMenu()          { store.refresh() }
     @objc private func checkForUpdatesFromMenu()  { AppActions.checkForUpdates() }
+    @objc private func toggleAutoUpdateFromMenu() { AppActions.autoUpdateEnabled.toggle() }
     @objc private func aboutFromMenu()            { AppActions.about() }
     @objc private func openRepoFromMenu()         { AppActions.openRepo() }
 }
