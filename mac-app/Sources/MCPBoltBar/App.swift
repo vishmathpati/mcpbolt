@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store          = ServerStore()
     private let projectStore   = ProjectStore()
     private let settingsStore  = SettingsStore()
+    private let codexStore     = CodexSettingsStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide from Dock
@@ -48,7 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DashboardWindow.shared.open(
                     store: self.store,
                     projectStore: self.projectStore,
-                    settingsStore: self.settingsStore
+                    settingsStore: self.settingsStore,
+                    codexStore: self.codexStore
                 )
             }
         }
@@ -146,6 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(store)
                 .environmentObject(projectStore)
                 .environmentObject(settingsStore)
+                .environmentObject(codexStore)
         )
     }
 
@@ -188,7 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openDashboardFromMenu() {
-        DashboardWindow.shared.open(store: store, projectStore: projectStore, settingsStore: settingsStore)
+        DashboardWindow.shared.open(store: store, projectStore: projectStore, settingsStore: settingsStore, codexStore: codexStore)
     }
     @objc private func refreshFromMenu()          { store.refresh() }
     @objc private func checkForUpdatesFromMenu()  { AppActions.checkForUpdates() }

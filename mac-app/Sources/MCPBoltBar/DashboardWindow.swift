@@ -18,7 +18,7 @@ final class DashboardWindow {
 
     private init() {}
 
-    func open(store: ServerStore, projectStore: ProjectStore, settingsStore: SettingsStore) {
+    func open(store: ServerStore, projectStore: ProjectStore, settingsStore: SettingsStore, codexStore: CodexSettingsStore) {
         if let existing = window, existing.isVisible {
             existing.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -29,6 +29,7 @@ final class DashboardWindow {
             .environmentObject(store)
             .environmentObject(projectStore)
             .environmentObject(settingsStore)
+            .environmentObject(codexStore)
 
         let hc = NSHostingController(rootView: AnyView(content))
         hostingController = hc
@@ -55,6 +56,7 @@ struct DashboardRootView: View {
     @EnvironmentObject var store: ServerStore
     @EnvironmentObject var projects: ProjectStore
     @EnvironmentObject var settings: SettingsStore
+    @EnvironmentObject var codex: CodexSettingsStore
     @StateObject private var overlay = OverlayPresenter()
 
     @State private var tab: Int = 0
@@ -249,6 +251,7 @@ struct DashboardRootView: View {
             SettingsEditorView()
                 .environmentObject(settings)
                 .environmentObject(projects)
+                .environmentObject(codex)
         case 2:
             ProjectsView()
                 .environmentObject(projects)

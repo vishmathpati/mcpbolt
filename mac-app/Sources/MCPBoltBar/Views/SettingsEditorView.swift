@@ -1,23 +1,74 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Settings tab — unlock hidden Claude Code features
+// MARK: - Settings tab — Claude Code + Codex feature cards
 
 struct SettingsEditorView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var projects: ProjectStore
+    @EnvironmentObject var codex: CodexSettingsStore
+
+    private enum ActiveTab { case claude, codex }
+    @State private var activeTab: ActiveTab = .claude
 
     var body: some View {
         VStack(spacing: 0) {
-            scopeBar
+            toolTabBar
             Divider()
-            if settings.isLoading {
-                loadingState
-            } else {
-                featureList
+            switch activeTab {
+            case .claude: claudeContent
+            case .codex:  codexContent
             }
         }
-        .onAppear { settings.load() }
+        .onAppear {
+            settings.load()
+            codex.load()
+        }
+    }
+
+    // MARK: - Tool tab bar (Claude Code | Codex)
+
+    private var toolTabBar: some View {
+        HStack(spacing: 6) {
+            toolTabButton("Claude Code", tab: .claude)
+            toolTabButton("Codex",       tab: .codex)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+    }
+
+    private func toolTabButton(_ label: String, tab: ActiveTab) -> some View {
+        let active = activeTab == tab
+        return Button(action: { activeTab = tab }) {
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(active ? .white : .secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(Group {
+                    if active { ContentView.headerGrad }
+                    else      { LinearGradient(colors: [], startPoint: .top, endPoint: .bottom) }
+                })
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(active ? Color.clear : Color(NSColor.separatorColor).opacity(0.7), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Claude Code content (existing)
+
+    private var claudeContent: some View {
+        VStack(spacing: 0) {
+            scopeBar
+            Divider()
+            if settings.isLoading { loadingState }
+            else                  { featureList }
+        }
     }
 
     // MARK: - Scope bar
@@ -149,12 +200,11 @@ struct SettingsEditorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity).padding(40)
     }
 
-    // MARK: - Feature list
+    // MARK: - Claude Code feature list
 
     private var featureList: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Section header
                 HStack(spacing: 5) {
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 10, weight: .bold))
@@ -413,13 +463,176 @@ struct SettingsEditorView: View {
                 }
                 .padding(.horizontal, 12)
 
-                // Hooks footer
                 hooksCard
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
                     .padding(.bottom, 12)
 
                 if let err = settings.lastError {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11)).foregroundColor(.red)
+                        Text(err).font(.system(size: 11)).foregroundColor(.red).lineLimit(2)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12).padding(.bottom, 8)
+                }
+            }
+        }
+    }
+
+    // MARK: - Codex content
+
+    private var codexContent: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                HStack(spacing: 5) {
+                    Image(systemName: "circle.grid.2x2.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(Color(red: 0.1, green: 0.7, blue: 0.4))
+                    Text("Codex Settings")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Text("— ~/.codex/config.toml")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+                VStack(spacing: 6) {
+
+                    // MARK: Features
+                    groupHeader("Features")
+
+                    FeatureCard(
+                        icon: "brain.head.profile",
+                        iconColor: Color(red: 0.1, green: 0.7, blue: 0.4),
+                        title: "Memories",
+                        impact: "Codex remembers context across sessions automatically",
+                        jsonHint: "[features] memories = true",
+                        isOn: codex.memoriesEnabled,
+                        onToggle: { codex.memoriesEnabled.toggle() }
+                    )
+
+                    FeatureCard(
+                        icon: "arrow.triangle.2.circlepath",
+                        iconColor: Color(red: 0.1, green: 0.7, blue: 0.4),
+                        title: "Codex Hooks",
+                        impact: "Run shell commands on lifecycle events (hooks.json)",
+                        jsonHint: "[features] codex_hooks = true",
+                        isOn: codex.codexHooksEnabled,
+                        onToggle: { codex.codexHooksEnabled.toggle() }
+                    )
+
+                    // MARK: Reasoning
+                    groupHeader("Reasoning")
+
+                    CodexPickerCard(
+                        icon: "brain.filled.head.profile",
+                        iconColor: Color(red: 0.6, green: 0.25, blue: 0.9),
+                        title: "Reasoning Effort",
+                        impact: "How hard the model thinks per request",
+                        hint: "model_reasoning_effort = \"high\"",
+                        selection: $codex.reasoningEffort
+                    ) {
+                        ForEach(CodexSettingsStore.ReasoningEffort.allCases, id: \.self) { e in
+                            Text(e.label).tag(e)
+                        }
+                    }
+
+                    FeatureCard(
+                        icon: "eye.slash",
+                        iconColor: Color(red: 0.6, green: 0.25, blue: 0.9),
+                        title: "Hide Agent Reasoning",
+                        impact: "Suppress internal reasoning events from output (quieter CI logs)",
+                        jsonHint: "hide_agent_reasoning = true",
+                        isOn: codex.hideAgentReasoning,
+                        onToggle: { codex.hideAgentReasoning.toggle() }
+                    )
+
+                    FeatureCard(
+                        icon: "text.bubble.fill",
+                        iconColor: Color(red: 0.6, green: 0.25, blue: 0.9),
+                        title: "Show Raw Reasoning",
+                        impact: "Surface raw reasoning tokens when the model emits them",
+                        jsonHint: "show_raw_agent_reasoning = true",
+                        isOn: codex.showRawReasoning,
+                        onToggle: { codex.showRawReasoning.toggle() }
+                    )
+
+                    // MARK: Interface & Style
+                    groupHeader("Interface & Style")
+
+                    CodexPickerCard(
+                        icon: "person.fill",
+                        iconColor: Color(red: 0.0, green: 0.55, blue: 0.85),
+                        title: "Personality",
+                        impact: "Communication style for supported models",
+                        hint: "personality = \"pragmatic\"",
+                        selection: $codex.personality
+                    ) {
+                        ForEach(CodexSettingsStore.Personality.allCases, id: \.self) { p in
+                            Text(p.label).tag(p)
+                        }
+                    }
+
+                    CodexPickerCard(
+                        icon: "magnifyingglass",
+                        iconColor: Color(red: 0.0, green: 0.55, blue: 0.85),
+                        title: "Web Search",
+                        impact: "How Codex fetches web results during tasks",
+                        hint: "web_search = \"live\"",
+                        selection: $codex.webSearch
+                    ) {
+                        ForEach(CodexSettingsStore.WebSearch.allCases, id: \.self) { w in
+                            Text(w.label).tag(w)
+                        }
+                    }
+
+                    FeatureCard(
+                        icon: "sparkles.slash",
+                        iconColor: Color(red: 0.0, green: 0.55, blue: 0.85),
+                        title: "Disable TUI Animations",
+                        impact: "Kill ASCII shimmer and loading animations in the terminal UI",
+                        jsonHint: "[tui] animations = false",
+                        isOn: codex.animationsDisabled,
+                        onToggle: { codex.animationsDisabled.toggle() }
+                    )
+
+                    // MARK: Privacy
+                    groupHeader("Privacy")
+
+                    FeatureCard(
+                        icon: "chart.bar.xmark",
+                        iconColor: Color(red: 0.95, green: 0.4, blue: 0.2),
+                        title: "Disable Analytics",
+                        impact: "Stop anonymous usage metrics from being sent to OpenAI",
+                        jsonHint: "[analytics] enabled = false",
+                        isOn: codex.analyticsDisabled,
+                        onToggle: { codex.analyticsDisabled.toggle() }
+                    )
+
+                    FeatureCard(
+                        icon: "hand.thumbsdown.fill",
+                        iconColor: Color(red: 0.95, green: 0.4, blue: 0.2),
+                        title: "Disable Feedback",
+                        impact: "Disable /feedback command across all Codex surfaces",
+                        jsonHint: "[feedback] enabled = false",
+                        isOn: codex.feedbackDisabled,
+                        onToggle: { codex.feedbackDisabled.toggle() }
+                    )
+                }
+                .padding(.horizontal, 12)
+
+                openCodexConfigCard
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+
+                if let err = codex.lastError {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 11)).foregroundColor(.red)
@@ -463,7 +676,7 @@ struct SettingsEditorView: View {
         .padding(.bottom, 2)
     }
 
-    // MARK: - Hooks card
+    // MARK: - Footer cards
 
     private var hooksCard: some View {
         Button(action: openSettingsInEditor) {
@@ -508,6 +721,40 @@ struct SettingsEditorView: View {
         .help("Opens settings.json in your default editor — add hooks manually")
     }
 
+    private var openCodexConfigCard: some View {
+        Button(action: openCodexConfigInEditor) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(NSColor.windowBackgroundColor))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "doc.plaintext")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color(red: 0.1, green: 0.7, blue: 0.4))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Open config.toml")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Text("Edit profiles, MCP servers, custom providers, and more")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right.square")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
+            .padding(12)
+            .background(Color(NSColor.controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .help("Opens ~/.codex/config.toml in your default editor")
+    }
+
     private func openSettingsInEditor() {
         let path = settings.settingsPath
         if !FileManager.default.fileExists(atPath: path) {
@@ -517,9 +764,19 @@ struct SettingsEditorView: View {
         }
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
+
+    private func openCodexConfigInEditor() {
+        let path = codex.configPath
+        if !FileManager.default.fileExists(atPath: path) {
+            let dir = URL(fileURLWithPath: path).deletingLastPathComponent().path
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            try? "# Codex configuration\n".write(toFile: path, atomically: true, encoding: .utf8)
+        }
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
 }
 
-// MARK: - Feature card
+// MARK: - Feature card (Claude Code toggles)
 
 private struct FeatureCard: View {
     let icon:      String
@@ -575,5 +832,60 @@ private struct FeatureCard: View {
                 )
         )
         .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isOn)
+    }
+}
+
+// MARK: - Picker card (Codex enum settings)
+
+private struct CodexPickerCard<V: Hashable, Content: View>: View {
+    let icon:      String
+    let iconColor: Color
+    let title:     String
+    let impact:    String
+    let hint:      String
+    @Binding var selection: V
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.12))
+                    .frame(width: 34, height: 34)
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(iconColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+                Text(impact)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(hint)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.secondary.opacity(0.45))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Picker("", selection: $selection) {
+                content()
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(NSColor.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5)
+        )
     }
 }
