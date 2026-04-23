@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import SQLite3
 
 // MARK: - Discovered project model
 
@@ -144,17 +145,16 @@ final class ProjectStore: ObservableObject {
 
     // MARK: - Background scan helpers (nonisolated — runs on Task.detached)
 
-    /// Two-source discovery:
-    /// 1. ~/.claude.json `projects` keys — every folder Claude Code has ever opened (most accurate)
-    /// 2. Filesystem walk of common dev roots — catches Cursor/VSCode-only projects
+    /// Three-source discovery:
+    /// 1. ~/.claude.json `projects` — every folder Claude Code has ever opened
+    /// 2. ~/.codex/state_N.sqlite `threads.cwd` — every folder Codex CLI has ever opened
+    /// 3. Filesystem walk of common dev roots — catches Cursor/VSCode-only projects
     nonisolated private static func findProjects(excluding existingPaths: Set<String>) -> [DiscoveredProject] {
         var seen = existingPaths
         var found: [DiscoveredProject] = []
 
-        // Source 1 — ~/.claude.json (fast, authoritative)
         found.append(contentsOf: fromClaudeJson(excluding: &seen))
-
-        // Source 2 — filesystem walk (catches projects not yet opened with Claude Code)
+        found.append(contentsOf: fromCodexSqlite(excluding: &seen))
         found.append(contentsOf: fromFilesystem(excluding: &seen))
 
         return found.sorted {
@@ -201,6 +201,68 @@ final class ProjectStore: ObservableObject {
             ))
             seen.insert(canonical)
             if found.count >= 60 { break }
+        }
+
+        return found
+    }
+
+    /// Read ~/.codex/state_N.sqlite → threads.cwd to find every directory
+    /// Codex CLI has ever worked in. The tool manager only reads config.toml
+    /// for global MCPs; this gives us the actual project history.
+    nonisolated private static func fromCodexSqlite(excluding seen: inout Set<String>) -> [DiscoveredProject] {
+        let fm   = FileManager.default
+        let home = NSHomeDirectory()
+        let codexDir = (home as NSString).appendingPathComponent(".codex")
+
+        // Find the highest-versioned state_N.sqlite that exists
+        let dbPath = (1...9).reversed().lazy.compactMap { n -> String? in
+            let p = (codexDir as NSString).appendingPathComponent("state_\(n).sqlite")
+            return fm.fileExists(atPath: p) ? p : nil
+        }.first
+        guard let dbPath else { return [] }
+
+        // Broad container paths that are not real projects
+        let broadPaths: Set<String> = [
+            home, "/",
+            (home as NSString).appendingPathComponent("Desktop"),
+            (home as NSString).appendingPathComponent("Downloads"),
+            (home as NSString).appendingPathComponent("Documents"),
+            (home as NSString).appendingPathComponent("Library"),
+        ]
+
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_close(db) }
+
+        let sql = "SELECT DISTINCT cwd FROM threads WHERE cwd IS NOT NULL AND cwd != '' AND cwd != '/'"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+
+        var found: [DiscoveredProject] = []
+
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let ptr = sqlite3_column_text(stmt, 0) else { continue }
+            let canonical = Project.canonicalize(String(cString: ptr))
+
+            guard !seen.contains(canonical) else { continue }
+            guard !broadPaths.contains(canonical) else { continue }
+
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: canonical, isDirectory: &isDir), isDir.boolValue else { continue }
+
+            let hasGit = fm.fileExists(atPath: (canonical as NSString).appendingPathComponent(".git"))
+            let tools  = detectedTools(at: canonical, fm: fm)
+
+            found.append(DiscoveredProject(
+                id:            UUID(),
+                path:          canonical,
+                displayName:   Project.folderName(at: canonical),
+                hasGit:        hasGit,
+                detectedTools: tools
+            ))
+            seen.insert(canonical)
+            if found.count >= 40 { break }
         }
 
         return found

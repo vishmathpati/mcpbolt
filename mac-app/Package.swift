@@ -7,7 +7,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "MCPBoltBar",
-            path: "Sources/MCPBoltBar"
+            path: "Sources/MCPBoltBar",
+            linkerSettings: [.linkedLibrary("sqlite3")]
         ),
     ]
 )
