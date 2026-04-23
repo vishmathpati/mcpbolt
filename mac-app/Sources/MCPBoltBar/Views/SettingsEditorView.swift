@@ -265,6 +265,16 @@ struct SettingsEditorView: View {
                         onToggle: { settings.toggle(.disableTelemetry) }
                     )
 
+                    FeatureCard(
+                        icon: "memories.badge.minus",
+                        iconColor: Color(red: 0.15, green: 0.7, blue: 0.4),
+                        title: "Disable Auto Memory",
+                        impact: "Stop Claude from automatically saving memories across sessions",
+                        jsonHint: "autoMemoryEnabled: false",
+                        isOn: settings.disableAutoMemory,
+                        onToggle: { settings.toggle(.disableAutoMemory) }
+                    )
+
                     groupHeader("Workflow")
 
                     FeatureCard(

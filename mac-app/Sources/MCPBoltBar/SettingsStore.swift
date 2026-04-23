@@ -21,6 +21,7 @@ final class SettingsStore: ObservableObject {
     @Published var keepSessions1Year:    Bool = false  // cleanupPeriodDays: 365
     @Published var cleanCommits:         Bool = false  // includeCoAuthoredBy: false (explicit)
     @Published var disableTelemetry:     Bool = false  // env.CLAUDE_CODE_DISABLE_TELEMETRY = "1"
+    @Published var disableAutoMemory:    Bool = false  // autoMemoryEnabled: false
     @Published var autoTrustProjectMCPs: Bool = false  // enableAllProjectMcpServers: true
     @Published var worktreeSymlinks:     Bool = false  // worktree.symlinkDirectories: [...]
 
@@ -83,6 +84,7 @@ final class SettingsStore: ObservableObject {
                 self.keepSessions1Year    = featS.keepSessions1Year
                 self.cleanCommits         = featS.cleanCommits
                 self.disableTelemetry     = featS.disableTelemetry
+                self.disableAutoMemory    = featS.disableAutoMemory
                 self.autoTrustProjectMCPs = featS.autoTrustProjectMCPs
                 self.worktreeSymlinks     = featS.worktreeSymlinks
                 self.maxEffortMode         = featS.maxEffortMode
@@ -101,6 +103,7 @@ final class SettingsStore: ObservableObject {
         case keepSessions1Year, cleanCommits, disableTelemetry
         case vimKeys, autoTrustProjectMCPs, worktreeSymlinks
         case maxEffortMode, extendedThinking, highOutputLimit
+        case disableAutoMemory
     }
 
     func toggle(_ feature: Feature) {
@@ -117,6 +120,7 @@ final class SettingsStore: ObservableObject {
         case .maxEffortMode:        maxEffortMode        = !maxEffortMode;        saveSettings()
         case .extendedThinking:     extendedThinking     = !extendedThinking;     saveSettings()
         case .highOutputLimit:      highOutputLimit      = !highOutputLimit;      saveSettings()
+        case .disableAutoMemory:    disableAutoMemory    = !disableAutoMemory;    saveSettings()
         }
     }
 
@@ -152,6 +156,10 @@ final class SettingsStore: ObservableObject {
 
         // cleanupPeriodDays
         if keepSessions1Year { dict["cleanupPeriodDays"] = 365 } else { dict.removeValue(forKey: "cleanupPeriodDays") }
+
+        // autoMemoryEnabled — only written when explicitly disabling (default is true)
+        if disableAutoMemory { dict["autoMemoryEnabled"] = false }
+        else { dict.removeValue(forKey: "autoMemoryEnabled") }
 
         // includeCoAuthoredBy — only written when explicitly overriding the default
         // Default Claude Code behavior is to include coauthored-by; cleanCommits=true overrides that
@@ -216,6 +224,9 @@ final class SettingsStore: ObservableObject {
         f.fullscreenTerminal   = (raw["tui"] as? String) == "fullscreen"
         f.keepSessions1Year    = (raw["cleanupPeriodDays"] as? Int).map { $0 >= 365 } ?? false
         f.autoTrustProjectMCPs = (raw["enableAllProjectMcpServers"] as? Bool) == true
+
+        // autoMemoryEnabled: false → disableAutoMemory = true
+        if let v = raw["autoMemoryEnabled"] as? Bool { f.disableAutoMemory = !v }
 
         // cleanCommits = includeCoAuthoredBy is explicitly false
         if let v = raw["includeCoAuthoredBy"] as? Bool { f.cleanCommits = !v }
@@ -305,6 +316,7 @@ private struct SettingsFeatures {
     var disableTelemetry:     Bool = false
     var autoTrustProjectMCPs: Bool = false
     var worktreeSymlinks:     Bool = false
+    var disableAutoMemory:    Bool = false
     var maxEffortMode:        Bool = false
     var extendedThinking:     Bool = false
     var highOutputLimit:      Bool = false
