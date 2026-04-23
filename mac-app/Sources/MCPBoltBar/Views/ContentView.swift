@@ -248,10 +248,11 @@ struct ContentView: View {
     // MARK: - Tab bar (pill style)
 
     private var tabBar: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             tabButton(title: "By App",   icon: "app.badge.checkmark", tag: 0)
             tabButton(title: "Coverage", icon: "tablecells.fill",     tag: 1)
             tabButton(title: "Projects", icon: "folder.fill",         tag: 2)
+            tabButton(title: "Settings", icon: "gearshape.fill",      tag: 3)
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -264,15 +265,15 @@ struct ContentView: View {
                 self.tab = tag
             }
         }) {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
             }
             .foregroundColor(active ? .white : .secondary)
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background(
                 Group {
@@ -296,7 +297,9 @@ struct ContentView: View {
 
     @ViewBuilder
     private var content: some View {
-        if tab == 2 {
+        if tab == 3 {
+            SettingsEditorView()
+        } else if tab == 2 {
             ProjectsView()
         } else if store.detectedTools.isEmpty && !store.isLoading {
             emptyState

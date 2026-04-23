@@ -37,9 +37,9 @@ cat > "$APP/Contents/Info.plist" << 'PLIST'
     <key>CFBundleDisplayName</key>
     <string>mcpbolt</string>
     <key>CFBundleVersion</key>
-    <string>0.3.0</string>
+    <string>0.4.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.3.0</string>
+    <string>0.4.0</string>
     <key>CFBundleExecutable</key>
     <string>MCPBoltBar</string>
     <key>CFBundlePackageType</key>
@@ -52,6 +52,17 @@ cat > "$APP/Contents/Info.plist" << 'PLIST'
     <string>14.0</string>
     <key>NSHumanReadableCopyright</key>
     <string>MIT</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.mcpbolt.install</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>mcpbolt</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>
 PLIST

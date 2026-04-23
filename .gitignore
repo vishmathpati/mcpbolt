@@ -45,3 +45,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .zed/
 CLAUDE.md
 .gstack/
+
+# private roadmap / strategy notes — never commit
+ROADMAP.private.md

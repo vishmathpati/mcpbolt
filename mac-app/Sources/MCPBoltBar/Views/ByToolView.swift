@@ -333,6 +333,12 @@ struct ServerRow: View {
                     Label("Check health", systemImage: "heart.text.square")
                 }
 
+                Button {
+                    copyInstallLink()
+                } label: {
+                    Label("Copy install link", systemImage: "link.badge.plus")
+                }
+
                 Divider()
 
                 Button(role: .destructive) {
@@ -462,5 +468,36 @@ struct ServerRow: View {
         checkingHealth = true
         health = await HealthCheck.check(server)
         checkingHealth = false
+    }
+
+    // MARK: Copy install link
+
+    private func copyInstallLink() {
+        // Build { mcpServers: { name: config } } from the live server config
+        guard let config = ConfigWriter.readServer(toolID: toolID, name: server.name) else {
+            // Fallback: build from the server entry we already have
+            let config = buildFallbackConfig()
+            writeInstallLink(name: server.name, config: config)
+            return
+        }
+        writeInstallLink(name: server.name, config: config)
+    }
+
+    private func buildFallbackConfig() -> [String: Any] {
+        var c: [String: Any] = ["command": server.command ?? "", "args": server.args]
+        if let url = server.url { c = ["url": url] }
+        return c
+    }
+
+    private func writeInstallLink(name: String, config: [String: Any]) {
+        let payload: [String: Any] = ["mcpServers": [name: config]]
+        guard let data   = try? JSONSerialization.data(withJSONObject: payload),
+              let b64    = data.base64EncodedString().addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        else { return }
+
+        let deepLink = "mcpbolt://install?config=\(b64)"
+        let markdown = "[![Install in mcpbolt](https://img.shields.io/badge/Install%20in-mcpbolt-F4C01E?logo=lightning)](\(deepLink))"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdown, forType: .string)
     }
 }

@@ -18,10 +18,11 @@ struct MCPBoltBarApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var statusItem: NSStatusItem!
-    private var popover:    NSPopover!
-    private let store = ServerStore()
-    private let projectStore = ProjectStore()
+    private var statusItem:    NSStatusItem!
+    private var popover:       NSPopover!
+    private let store          = ServerStore()
+    private let projectStore   = ProjectStore()
+    private let settingsStore  = SettingsStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide from Dock
@@ -35,6 +36,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Silent update check on launch — shows an alert only if a newer
         // version is available. Never bothers the user otherwise.
         AppActions.checkForUpdates(silent: true)
+    }
+
+    // MARK: - URL scheme (mcpbolt://)
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { handleDeepLink(url) }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "mcpbolt" else { return }
+
+        // Open the popover first so the user sees the result
+        if !popover.isShown, let button = statusItem.button {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            NSApp.activate(ignoringOtherApps: true)
+            store.refresh()
+        }
+
+        switch url.host {
+        case "install":
+            // mcpbolt://install?config=<base64-encoded JSON with mcpServers key>
+            handleInstall(url: url)
+        case "open-project":
+            // mcpbolt://open-project?path=<url-encoded path>
+            handleOpenProject(url: url)
+        default:
+            break
+        }
+    }
+
+    private func handleInstall(url: URL) {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let configParam = components.queryItems?.first(where: { $0.name == "config" })?.value,
+              let data = Data(base64Encoded: configParam),
+              let json = String(data: data, encoding: .utf8) else { return }
+
+        // Post to NotificationCenter so ImportSheet can receive it
+        NotificationCenter.default.post(
+            name: .mcpboltInstallURL,
+            object: nil,
+            userInfo: ["json": json]
+        )
+    }
+
+    private func handleOpenProject(url: URL) {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let pathParam = components.queryItems?.first(where: { $0.name == "path" })?.value,
+              !pathParam.isEmpty else { return }
+
+        let resolved = (pathParam as NSString).expandingTildeInPath
+        projectStore.add(path: resolved)
+
+        NotificationCenter.default.post(
+            name: .mcpboltOpenProject,
+            object: nil,
+            userInfo: ["path": resolved]
+        )
     }
 
     // MARK: - Status item
@@ -71,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             rootView: ContentView()
                 .environmentObject(store)
                 .environmentObject(projectStore)
+                .environmentObject(settingsStore)
         )
     }
 
@@ -114,4 +173,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func checkForUpdatesFromMenu()  { AppActions.checkForUpdates() }
     @objc private func aboutFromMenu()            { AppActions.about() }
     @objc private func openRepoFromMenu()         { AppActions.openRepo() }
+}
+
+// MARK: - Notification names for URL scheme events
+
+extension Notification.Name {
+    static let mcpboltInstallURL   = Notification.Name("com.mcpbolt.installURL")
+    static let mcpboltOpenProject  = Notification.Name("com.mcpbolt.openProject")
 }
