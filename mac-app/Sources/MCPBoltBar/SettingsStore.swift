@@ -8,10 +8,10 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - Scope
 
-    enum Scope { case user, project }
+    enum Scope { case user, local, project }
 
     @Published var scope: Scope = .user { didSet { load() } }
-    @Published var projectPath: String? = nil { didSet { if scope == .project { load() } } }
+    @Published var projectPath: String? = nil { didSet { if scope == .project || scope == .local { load() } } }
 
     // MARK: - Feature flags (settings.json)
 
@@ -23,6 +23,11 @@ final class SettingsStore: ObservableObject {
     @Published var disableTelemetry:     Bool = false  // env.CLAUDE_CODE_DISABLE_TELEMETRY = "1"
     @Published var autoTrustProjectMCPs: Bool = false  // enableAllProjectMcpServers: true
     @Published var worktreeSymlinks:     Bool = false  // worktree.symlinkDirectories: [...]
+
+    // Thinking & effort flags (settings.json env block)
+    @Published var maxEffortMode:        Bool = false  // env.CLAUDE_CODE_EFFORT_LEVEL = "max"
+    @Published var extendedThinking:     Bool = false  // env.MAX_THINKING_TOKENS = "20000" + SHOW_EXTENDED_THINKING_SUMMARIES + DISABLE_ADAPTIVE_THINKING
+    @Published var highOutputLimit:      Bool = false  // env.MAX_OUTPUT_TOKENS = "64000"
 
     // Feature flag from ~/.claude.json (global, not scope-aware)
     @Published var vimKeys:              Bool = false  // editorMode: "vim"
@@ -43,6 +48,9 @@ final class SettingsStore: ObservableObject {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         switch scope {
         case .user: return "\(home)/.claude/settings.json"
+        case .local:
+            guard let root = projectPath else { return "\(home)/.claude/settings.json" }
+            return "\(root)/.claude/settings.local.json"
         case .project:
             guard let root = projectPath else { return "\(home)/.claude/settings.json" }
             return "\(root)/.claude/settings.json"
@@ -77,6 +85,9 @@ final class SettingsStore: ObservableObject {
                 self.disableTelemetry     = featS.disableTelemetry
                 self.autoTrustProjectMCPs = featS.autoTrustProjectMCPs
                 self.worktreeSymlinks     = featS.worktreeSymlinks
+                self.maxEffortMode         = featS.maxEffortMode
+                self.extendedThinking      = featS.extendedThinking
+                self.highOutputLimit       = featS.highOutputLimit
                 self.vimKeys              = featG.vimKeys
                 self.isLoading            = false
             }
@@ -89,6 +100,7 @@ final class SettingsStore: ObservableObject {
         case extendedOutputLimit, largeFileReading, fullscreenTerminal
         case keepSessions1Year, cleanCommits, disableTelemetry
         case vimKeys, autoTrustProjectMCPs, worktreeSymlinks
+        case maxEffortMode, extendedThinking, highOutputLimit
     }
 
     func toggle(_ feature: Feature) {
@@ -102,6 +114,9 @@ final class SettingsStore: ObservableObject {
         case .autoTrustProjectMCPs: autoTrustProjectMCPs = !autoTrustProjectMCPs; saveSettings()
         case .worktreeSymlinks:     worktreeSymlinks     = !worktreeSymlinks;     saveSettings()
         case .vimKeys:              vimKeys              = !vimKeys;              saveGlobalConfig()
+        case .maxEffortMode:        maxEffortMode        = !maxEffortMode;        saveSettings()
+        case .extendedThinking:     extendedThinking     = !extendedThinking;     saveSettings()
+        case .highOutputLimit:      highOutputLimit      = !highOutputLimit;      saveSettings()
         }
     }
 
@@ -124,7 +139,12 @@ final class SettingsStore: ObservableObject {
         var env = dict["env"] as? [String: Any] ?? [:]
         setOrRemove(&env, key: "CLAUDE_CODE_TERMINAL_OUTPUT_LIMIT", value: extendedOutputLimit ? "150000" : nil)
         setOrRemove(&env, key: "CLAUDE_CODE_MAX_READ_LINES",        value: largeFileReading    ? "5000"   : nil)
-        setOrRemove(&env, key: "CLAUDE_CODE_DISABLE_TELEMETRY",     value: disableTelemetry    ? "1"      : nil)
+        setOrRemove(&env, key: "CLAUDE_CODE_DISABLE_TELEMETRY",          value: disableTelemetry    ? "1"     : nil)
+        setOrRemove(&env, key: "CLAUDE_CODE_EFFORT_LEVEL",               value: maxEffortMode       ? "max"   : nil)
+        setOrRemove(&env, key: "MAX_THINKING_TOKENS",                     value: extendedThinking    ? "20000" : nil)
+        setOrRemove(&env, key: "SHOW_EXTENDED_THINKING_SUMMARIES",        value: extendedThinking    ? "1"     : nil)
+        setOrRemove(&env, key: "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING",   value: extendedThinking    ? "1"     : nil)
+        setOrRemove(&env, key: "MAX_OUTPUT_TOKENS",                       value: highOutputLimit     ? "64000" : nil)
         if env.isEmpty { dict.removeValue(forKey: "env") } else { dict["env"] = env }
 
         // tui
@@ -205,6 +225,10 @@ final class SettingsStore: ObservableObject {
             f.worktreeSymlinks = true
         }
 
+        f.maxEffortMode    = envString(env, "CLAUDE_CODE_EFFORT_LEVEL") == "max"
+        f.extendedThinking = envInt(env, "MAX_THINKING_TOKENS").map { $0 >= 10_000 } ?? false
+        f.highOutputLimit  = envInt(env, "MAX_OUTPUT_TOKENS").map { $0 >= 32_000 } ?? false
+
         return (raw, f)
     }
 
@@ -281,6 +305,9 @@ private struct SettingsFeatures {
     var disableTelemetry:     Bool = false
     var autoTrustProjectMCPs: Bool = false
     var worktreeSymlinks:     Bool = false
+    var maxEffortMode:        Bool = false
+    var extendedThinking:     Bool = false
+    var highOutputLimit:      Bool = false
 }
 
 private struct GlobalConfigFeatures {

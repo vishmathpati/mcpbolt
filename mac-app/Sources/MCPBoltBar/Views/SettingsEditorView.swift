@@ -23,41 +23,66 @@ struct SettingsEditorView: View {
     // MARK: - Scope bar
 
     private var scopeBar: some View {
-        HStack(spacing: 8) {
-            scopeButton(label: "User",    scope: .user)
-            scopeButton(label: "Project", scope: .project)
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                scopeButton(label: "User",    scope: .user)
+                scopeButton(label: "Local",   scope: .local)
+                scopeButton(label: "Project", scope: .project)
 
-            if settings.scope == .project {
-                projectPicker
-            }
-
-            Spacer()
-
-            if settings.savedRecently {
-                HStack(spacing: 3) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(.green)
-                    Text("Saved")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.green)
+                if settings.scope == .local || settings.scope == .project {
+                    projectPicker
                 }
-                .transition(.opacity)
-            }
 
-            if settings.hasUndo {
-                Button(action: { settings.undo() }) {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
+                Spacer()
+
+                if settings.savedRecently {
+                    HStack(spacing: 3) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.green)
+                        Text("Saved")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.green)
+                    }
+                    .transition(.opacity)
                 }
-                .buttonStyle(.plain)
-                .help("Restore previous settings from backup")
+
+                if settings.hasUndo {
+                    Button(action: { settings.undo() }) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Restore previous settings from backup")
+                }
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            .animation(.easeInOut(duration: 0.2), value: settings.savedRecently)
+
+            // File path hint
+            HStack(spacing: 4) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary.opacity(0.5))
+                Text(shortSettingsPath)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.secondary.opacity(0.5))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 6)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .animation(.easeInOut(duration: 0.2), value: settings.savedRecently)
+    }
+
+    private var shortSettingsPath: String {
+        let path = settings.settingsPath
+        let home = NSHomeDirectory()
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
 
     private func scopeButton(label: String, scope: SettingsStore.Scope) -> some View {
@@ -260,6 +285,38 @@ struct SettingsEditorView: View {
                         jsonHint: "worktree.symlinkDirectories: [\"node_modules\"]",
                         isOn: settings.worktreeSymlinks,
                         onToggle: { settings.toggle(.worktreeSymlinks) }
+                    )
+
+                    groupHeader("Thinking & Effort")
+
+                    FeatureCard(
+                        icon: "bolt.circle.fill",
+                        iconColor: Color(red: 0.95, green: 0.75, blue: 0.0),
+                        title: "Max Effort Mode",
+                        impact: "Claude puts maximum effort into every response — no shortcuts",
+                        jsonHint: "env.CLAUDE_CODE_EFFORT_LEVEL=max",
+                        isOn: settings.maxEffortMode,
+                        onToggle: { settings.toggle(.maxEffortMode) }
+                    )
+
+                    FeatureCard(
+                        icon: "brain.filled.head.profile",
+                        iconColor: Color(red: 0.6, green: 0.25, blue: 0.9),
+                        title: "Extended Thinking",
+                        impact: "Deeper internal reasoning — shows thinking summaries, disables shortcuts",
+                        jsonHint: "env.MAX_THINKING_TOKENS=20000 + SHOW_EXTENDED_THINKING_SUMMARIES=1",
+                        isOn: settings.extendedThinking,
+                        onToggle: { settings.toggle(.extendedThinking) }
+                    )
+
+                    FeatureCard(
+                        icon: "text.justify.leading",
+                        iconColor: Color(red: 0.6, green: 0.25, blue: 0.9),
+                        title: "High Output Limit",
+                        impact: "Allow longer responses — up to 64K tokens per reply",
+                        jsonHint: "env.MAX_OUTPUT_TOKENS=64000",
+                        isOn: settings.highOutputLimit,
+                        onToggle: { settings.toggle(.highOutputLimit) }
                     )
                 }
                 .padding(.horizontal, 12)
