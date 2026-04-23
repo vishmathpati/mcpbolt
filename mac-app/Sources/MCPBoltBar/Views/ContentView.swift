@@ -4,6 +4,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var store: ServerStore
+    @EnvironmentObject var settings: SettingsStore
     @StateObject private var overlay = OverlayPresenter()
     @State private var tab: Int = 0
 
@@ -118,6 +119,19 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .padding(.leading, 2)
                 .help("Refresh")
+
+                // Open Dashboard button
+                Button(action: {
+                    NotificationCenter.default.post(name: .mcpboltOpenDashboard, object: nil)
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(.white.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .help("Open Dashboard")
 
                 // More menu
                 Menu {

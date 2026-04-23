@@ -36,6 +36,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Silent update check on launch — shows an alert only if a newer
         // version is available. Never bothers the user otherwise.
         AppActions.checkForUpdates(silent: true)
+
+        // Open Dashboard notification (from ContentView button or menu)
+        NotificationCenter.default.addObserver(
+            forName: .mcpboltOpenDashboard,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                DashboardWindow.shared.open(
+                    store: self.store,
+                    projectStore: self.projectStore,
+                    settingsStore: self.settingsStore
+                )
+            }
+        }
     }
 
     // MARK: - URL scheme (mcpbolt://)
@@ -155,6 +171,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(header)
         menu.addItem(NSMenuItem.separator())
 
+        menu.addItem(withTitle: "Open Dashboard", action: #selector(openDashboardFromMenu), keyEquivalent: "d")
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Refresh", action: #selector(refreshFromMenu), keyEquivalent: "r")
         menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdatesFromMenu), keyEquivalent: "")
         menu.addItem(NSMenuItem.separator())
@@ -169,6 +187,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = nil  // reset so left click works normally again
     }
 
+    @objc private func openDashboardFromMenu() {
+        DashboardWindow.shared.open(store: store, projectStore: projectStore, settingsStore: settingsStore)
+    }
     @objc private func refreshFromMenu()          { store.refresh() }
     @objc private func checkForUpdatesFromMenu()  { AppActions.checkForUpdates() }
     @objc private func aboutFromMenu()            { AppActions.about() }
@@ -178,6 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 // MARK: - Notification names for URL scheme events
 
 extension Notification.Name {
-    static let mcpboltInstallURL   = Notification.Name("com.mcpbolt.installURL")
-    static let mcpboltOpenProject  = Notification.Name("com.mcpbolt.openProject")
+    static let mcpboltInstallURL    = Notification.Name("com.mcpbolt.installURL")
+    static let mcpboltOpenProject   = Notification.Name("com.mcpbolt.openProject")
+    static let mcpboltOpenDashboard = Notification.Name("com.mcpbolt.openDashboard")
 }

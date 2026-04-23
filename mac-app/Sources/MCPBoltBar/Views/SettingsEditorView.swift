@@ -16,14 +16,44 @@ struct SettingsEditorView: View {
     @State private var showingAddDeny  = false
     @State private var showingAddEnv   = false
 
-    private let knownModels = [
-        "claude-opus-4-5",
-        "claude-sonnet-4-5",
-        "claude-haiku-4-5",
-        "claude-opus-4",
-        "claude-sonnet-4",
-        "claude-haiku-4",
+    // MARK: - Model registry
+    // Sourced from docs.anthropic.com/models/overview + Claude Code model-config docs.
+    // Aliases (opus/sonnet/haiku) are Claude Code shortcuts — Claude Desktop / other
+    // tools require full model IDs.
+
+    private struct ModelEntry: Identifiable {
+        let id: String          // exact string for settings.json
+        let badge: String?      // short badge shown in picker ("Thinking", "1M", "Retiring")
+    }
+
+    private let modelGroups: [(header: String, models: [ModelEntry])] = [
+        ("Latest — Apr 2026", [
+            .init(id: "claude-opus-4-7",             badge: nil),
+            .init(id: "claude-sonnet-4-6",           badge: "Thinking"),
+            .init(id: "claude-haiku-4-5-20251001",   badge: "Thinking"),
+        ]),
+        ("Extended Thinking", [
+            .init(id: "claude-opus-4-6",             badge: "Thinking"),
+            .init(id: "claude-opus-4-5-20251101",    badge: "Thinking"),
+            .init(id: "claude-sonnet-4-5-20250929",  badge: "Thinking"),
+            .init(id: "claude-opus-4-1-20250805",    badge: "Thinking"),
+        ]),
+        ("Claude Code shortcuts (CLI only)", [
+            .init(id: "opus",       badge: "→ Opus 4.7"),
+            .init(id: "sonnet",     badge: "→ Sonnet 4.6"),
+            .init(id: "haiku",      badge: "→ Haiku 4.5"),
+            .init(id: "best",       badge: "→ opus"),
+            .init(id: "opusplan",   badge: "Opus plan / Sonnet exec"),
+        ]),
+        ("Legacy (retiring Jun 2026)", [
+            .init(id: "claude-opus-4-20250514",      badge: "Retiring"),
+            .init(id: "claude-sonnet-4-20250514",    badge: "Retiring"),
+        ]),
     ]
+
+    private var allKnownIDs: [String] {
+        modelGroups.flatMap { $0.models.map { $0.id } }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -173,28 +203,65 @@ struct SettingsEditorView: View {
         SettingsSection(
             title: "Model",
             icon: "cpu",
-            tooltip: "Default Claude model for all Claude Code sessions. Leave blank to use Claude Code's built-in default."
+            tooltip: "Default Claude model. Claude Code CLI accepts full IDs or shortcuts (opus/sonnet/haiku). Claude Desktop and other tools require the full model ID. Leaving blank uses each tool's built-in default."
         ) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
+                // Grouped picker
                 Picker("", selection: $settings.model) {
                     Text("Default (built-in)").tag("")
                     Divider()
-                    ForEach(knownModels, id: \.self) { m in
-                        Text(m).tag(m)
+                    ForEach(modelGroups, id: \.header) { group in
+                        Section(group.header) {
+                            ForEach(group.models) { entry in
+                                HStack {
+                                    Text(entry.id)
+                                    if let badge = entry.badge {
+                                        Text("· \(badge)")
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .tag(entry.id)
+                            }
+                        }
                     }
-                    if !settings.model.isEmpty && !knownModels.contains(settings.model) {
+                    // If the current value is custom (not in known list), still show it selected
+                    if !settings.model.isEmpty && !allKnownIDs.contains(settings.model) {
+                        Divider()
                         Text(settings.model).tag(settings.model)
                     }
                 }
                 .pickerStyle(.menu)
-                .fixedSize()
                 .labelsHidden()
+                .fixedSize()
 
-                if !settings.model.isEmpty {
-                    TextField("Custom model ID…", text: $settings.model)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, design: .monospaced))
+                // Selected model info chip
+                if let entry = allKnownIDs.contains(settings.model)
+                    ? modelGroups.flatMap({ $0.models }).first(where: { $0.id == settings.model })
+                    : nil,
+                   let badge = entry.badge {
+                    HStack(spacing: 4) {
+                        Image(systemName: badge.hasPrefix("→") ? "arrow.right" : "brain")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text(badge)
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .foregroundColor(.purple)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.purple.opacity(0.10))
+                    .clipShape(Capsule())
                 }
+
+                // Custom model ID override
+                HStack(spacing: 6) {
+                    Text("Custom ID:")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    TextField("e.g. claude-opus-4-7", text: $settings.model)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11, design: .monospaced))
+                }
+                .help("Type any model ID directly — overrides the picker above")
             }
         }
     }
