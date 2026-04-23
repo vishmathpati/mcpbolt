@@ -31,7 +31,10 @@ struct ProjectsView: View {
         VStack(spacing: 0) {
             addBar
             Divider()
-            if projects.projects.isEmpty {
+            let hasAny = !projects.projects.isEmpty || !projects.discovered.isEmpty
+            if !hasAny && projects.isScanning {
+                scanningState
+            } else if !hasAny {
                 emptyState
             } else {
                 list
@@ -40,11 +43,28 @@ struct ProjectsView: View {
     }
 
     private var addBar: some View {
-        HStack {
-            Text("\(projects.projects.count) project\(projects.projects.count == 1 ? "" : "s")")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+        HStack(spacing: 6) {
+            if projects.isScanning {
+                HStack(spacing: 5) {
+                    ProgressView().scaleEffect(0.55)
+                    Text("Scanning…")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                Text("\(projects.projects.count) project\(projects.projects.count == 1 ? "" : "s")")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
             Spacer()
+            Button(action: { projects.scan() }) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(projects.isScanning)
+            .help("Re-scan this Mac for project folders")
             Button(action: addFolder) {
                 HStack(spacing: 4) {
                     Image(systemName: "plus.circle.fill")
@@ -71,10 +91,120 @@ struct ProjectsView: View {
                 ForEach(projects.projects) { project in
                     row(for: project)
                 }
+
+                if !projects.discovered.isEmpty {
+                    discoveredSectionHeader
+                    ForEach(projects.discovered) { disc in
+                        discoveredRow(for: disc)
+                    }
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
         }
+    }
+
+    // MARK: Discovered section
+
+    private var discoveredSectionHeader: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.secondary)
+            Text("DISCOVERED ON THIS MAC")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.7))
+                .kerning(0.7)
+            Text("\(projects.discovered.count)")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Color.secondary.opacity(0.45))
+                .clipShape(Capsule())
+            Spacer()
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 2)
+    }
+
+    private func discoveredRow(for disc: DiscoveredProject) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.10))
+                    .frame(width: 34, height: 34)
+                Image(systemName: "folder")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(disc.displayName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                Text(shortPath(disc.path))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                HStack(spacing: 4) {
+                    if disc.hasGit {
+                        gitBadge
+                    }
+                    ForEach(disc.detectedTools, id: \.self) { toolID in
+                        toolBadge(toolID: toolID)
+                    }
+                }
+                .padding(.top, 2)
+            }
+
+            Spacer()
+
+            Button(action: { projects.addDiscovered(disc) }) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.accentColor)
+            }
+            .buttonStyle(.plain)
+            .help("Add to my projects")
+        }
+        .padding(10)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .overlay(
+            RoundedRectangle(cornerRadius: 9)
+                .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 0.5)
+        )
+    }
+
+    private var gitBadge: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "arrow.triangle.branch")
+                .font(.system(size: 8, weight: .semibold))
+            Text("git")
+                .font(.system(size: 9, weight: .semibold))
+        }
+        .foregroundColor(.secondary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.secondary.opacity(0.10))
+        .clipShape(Capsule())
+    }
+
+    private func toolBadge(toolID: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: ToolPalette.icon(for: toolID))
+                .font(.system(size: 8, weight: .semibold))
+            Text(toolLabel(toolID))
+                .font(.system(size: 9, weight: .semibold))
+        }
+        .foregroundColor(ToolPalette.color(for: toolID))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(ToolPalette.color(for: toolID).opacity(0.12))
+        .clipShape(Capsule())
     }
 
     // MARK: Row
@@ -182,7 +312,18 @@ struct ProjectsView: View {
         .clipShape(Capsule())
     }
 
-    // MARK: Empty state
+    // MARK: Scanning + empty states
+
+    private var scanningState: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+            Text("Scanning for projects on this Mac…")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(30)
+    }
 
     private var emptyState: some View {
         VStack(spacing: 12) {

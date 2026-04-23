@@ -37,9 +37,9 @@ cat > "$APP/Contents/Info.plist" << 'PLIST'
     <key>CFBundleDisplayName</key>
     <string>mcpbolt</string>
     <key>CFBundleVersion</key>
-    <string>0.5.1</string>
+    <string>0.5.2</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.5.1</string>
+    <string>0.5.2</string>
     <key>CFBundleExecutable</key>
     <string>MCPBoltBar</string>
     <key>CFBundlePackageType</key>

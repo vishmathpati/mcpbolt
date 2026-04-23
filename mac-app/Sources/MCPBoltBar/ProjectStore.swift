@@ -1,6 +1,18 @@
 import Foundation
 import AppKit
 
+// MARK: - Discovered project model
+
+/// A project folder found by auto-scanning common dev directories on this Mac.
+/// Not persisted — rebuilt from disk on each scan.
+struct DiscoveredProject: Identifiable, Equatable {
+    let id: UUID
+    let path: String
+    let displayName: String
+    let hasGit: Bool
+    let detectedTools: [String]  // tool IDs whose config file exists in this folder
+}
+
 // MARK: - Project model
 
 /// A project folder the user has added to the Projects tab. Project-scope MCP
@@ -39,11 +51,16 @@ struct Project: Codable, Identifiable, Equatable {
 
 @MainActor
 final class ProjectStore: ObservableObject {
-    @Published private(set) var projects: [Project] = []
+    @Published private(set) var projects:   [Project] = []
+    @Published private(set) var discovered: [DiscoveredProject] = []
+    @Published private(set) var isScanning: Bool = false
 
     private let defaultsKey = "mcpbolt.projects.v1"
 
-    init() { load() }
+    init() {
+        load()
+        scan()
+    }
 
     // MARK: - Public API
 
@@ -99,6 +116,117 @@ final class ProjectStore: ObservableObject {
         panel.prompt = "Add"
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         return Project.canonicalize(url.path)
+    }
+
+    // MARK: - Auto-discovery
+
+    /// Background scan of common dev directories. Safe to call multiple times — no-ops if already scanning.
+    func scan() {
+        guard !isScanning else { return }
+        isScanning = true
+        let existingPaths = Set(projects.map { $0.path })
+        Task.detached(priority: .utility) { [weak self] in
+            let found = ProjectStore.findProjects(excluding: existingPaths)
+            await MainActor.run {
+                self?.discovered = found
+                self?.isScanning = false
+            }
+        }
+    }
+
+    /// Promotes a discovered project into the manually-tracked list and removes it from `discovered`.
+    @discardableResult
+    func addDiscovered(_ disc: DiscoveredProject) -> Project {
+        let p = add(path: disc.path, displayName: disc.displayName)
+        discovered.removeAll { $0.id == disc.id }
+        return p
+    }
+
+    // MARK: - Background scan helpers (nonisolated — runs on Task.detached)
+
+    nonisolated private static func findProjects(excluding existingPaths: Set<String>) -> [DiscoveredProject] {
+        let fm   = FileManager.default
+        let home = NSHomeDirectory()
+
+        let rootNames = ["Projects", "Developer", "dev", "code", "src", "workspace", "Sites", "Documents"]
+        let searchRoots = rootNames
+            .map { (home as NSString).appendingPathComponent($0) }
+            .filter { fm.fileExists(atPath: $0) }
+
+        let skipDirs: Set<String> = [
+            "node_modules", ".git", ".cache", "Library", ".Trash",
+            "build", "dist", ".next", "vendor", ".npm", ".yarn",
+            "DerivedData", ".gradle", "__pycache__", "Packages"
+        ]
+
+        var found: [DiscoveredProject] = []
+        var seen  = existingPaths
+
+        for root in searchRoots {
+            guard let level1 = try? fm.contentsOfDirectory(atPath: root) else { continue }
+            for name in level1.sorted() {
+                guard !name.hasPrefix("."), !skipDirs.contains(name) else { continue }
+                let path = (root as NSString).appendingPathComponent(name)
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else { continue }
+
+                if let p = checkProject(at: path, excluding: seen) {
+                    found.append(p)
+                    seen.insert(p.path)
+                } else {
+                    // Level-2: org/company folders (e.g. ~/Developer/acme/repo)
+                    guard let level2 = try? fm.contentsOfDirectory(atPath: path) else { continue }
+                    for name2 in level2.prefix(20) {
+                        guard !name2.hasPrefix("."), !skipDirs.contains(name2) else { continue }
+                        let path2 = (path as NSString).appendingPathComponent(name2)
+                        var isDir2: ObjCBool = false
+                        guard fm.fileExists(atPath: path2, isDirectory: &isDir2), isDir2.boolValue else { continue }
+                        if let p = checkProject(at: path2, excluding: seen) {
+                            found.append(p)
+                            seen.insert(p.path)
+                        }
+                        if found.count >= 80 { break }
+                    }
+                }
+                if found.count >= 80 { break }
+            }
+            if found.count >= 80 { break }
+        }
+
+        return found.sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    nonisolated private static func checkProject(at path: String, excluding: Set<String>) -> DiscoveredProject? {
+        let fm        = FileManager.default
+        let canonical = Project.canonicalize(path)
+        guard !excluding.contains(canonical) else { return nil }
+
+        let hasGit = fm.fileExists(atPath: (canonical as NSString).appendingPathComponent(".git"))
+
+        let toolChecks: [(String, String)] = [
+            (".mcp.json",        "claude"),
+            (".cursor/mcp.json", "cursor"),
+            (".vscode/mcp.json", "vscode"),
+            (".roo/mcp.json",    "roo"),
+        ]
+        var tools: [String] = []
+        for (rel, toolID) in toolChecks {
+            if fm.fileExists(atPath: (canonical as NSString).appendingPathComponent(rel)) {
+                tools.append(toolID)
+            }
+        }
+
+        guard hasGit || !tools.isEmpty else { return nil }
+
+        return DiscoveredProject(
+            id:             UUID(),
+            path:           canonical,
+            displayName:    Project.folderName(at: canonical),
+            hasGit:         hasGit,
+            detectedTools:  tools
+        )
     }
 
     // MARK: - Counts (for the landing list)

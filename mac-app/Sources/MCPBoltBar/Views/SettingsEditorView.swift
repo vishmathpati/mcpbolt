@@ -152,14 +152,43 @@ struct SettingsEditorView: View {
 
     @ViewBuilder
     private var projectPicker: some View {
-        if projects.projects.isEmpty {
-            Text("No projects — add in Projects tab")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+        let hasAny = !projects.projects.isEmpty || !projects.discovered.isEmpty
+        if !hasAny {
+            HStack(spacing: 5) {
+                if projects.isScanning {
+                    ProgressView().scaleEffect(0.55)
+                    Text("Scanning…").font(.system(size: 11)).foregroundColor(.secondary)
+                } else {
+                    Text("No projects").font(.system(size: 11)).foregroundColor(.secondary)
+                    Button(action: { projects.scan() }) {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 10)).foregroundColor(.accentColor)
+                    }.buttonStyle(.plain).help("Scan for projects")
+                }
+            }
         } else {
             Menu {
-                ForEach(projects.projects) { proj in
-                    Button(proj.displayName) { settings.projectPath = proj.path }
+                if !projects.projects.isEmpty {
+                    Section("My Projects") {
+                        ForEach(projects.projects) { proj in
+                            Button(proj.displayName) { settings.projectPath = proj.path }
+                        }
+                    }
+                }
+                if !projects.discovered.isEmpty {
+                    Section("Discovered") {
+                        ForEach(projects.discovered) { disc in
+                            Button(disc.displayName) {
+                                projects.addDiscovered(disc)
+                                settings.projectPath = disc.path
+                            }
+                        }
+                    }
+                }
+                Divider()
+                if projects.isScanning {
+                    Button("Scanning\u{2026}") {}.disabled(true)
+                } else {
+                    Button("Refresh") { projects.scan() }
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -178,10 +207,10 @@ struct SettingsEditorView: View {
     }
 
     private var selectedProjectName: String {
-        guard let path = settings.projectPath,
-              let proj = projects.projects.first(where: { $0.path == path })
-        else { return "Pick project…" }
-        return proj.displayName
+        guard let path = settings.projectPath else { return "Pick project\u{2026}" }
+        if let proj = projects.projects.first(where: { $0.path == path }) { return proj.displayName }
+        if let disc = projects.discovered.first(where: { $0.path == path }) { return disc.displayName }
+        return "Pick project\u{2026}"
     }
 
     private var shortSettingsPath: String {
