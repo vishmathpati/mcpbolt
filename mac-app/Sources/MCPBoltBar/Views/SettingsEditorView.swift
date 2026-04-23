@@ -1,59 +1,11 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Settings tab — visual editor for ~/.claude/settings.json
+// MARK: - Settings tab — unlock hidden Claude Code features
 
 struct SettingsEditorView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var projects: ProjectStore
-
-    // Local edit state for permissions + env (using indices directly causes issues)
-    @State private var newAllowRule = ""
-    @State private var newDenyRule  = ""
-    @State private var newEnvKey    = ""
-    @State private var newEnvValue  = ""
-    @State private var showingAddAllow = false
-    @State private var showingAddDeny  = false
-    @State private var showingAddEnv   = false
-
-    // MARK: - Model registry
-    // Sourced from docs.anthropic.com/models/overview + Claude Code model-config docs.
-    // Aliases (opus/sonnet/haiku) are Claude Code shortcuts — Claude Desktop / other
-    // tools require full model IDs.
-
-    private struct ModelEntry: Identifiable {
-        let id: String          // exact string for settings.json
-        let badge: String?      // short badge shown in picker ("Thinking", "1M", "Retiring")
-    }
-
-    private let modelGroups: [(header: String, models: [ModelEntry])] = [
-        ("Latest — Apr 2026", [
-            .init(id: "claude-opus-4-7",             badge: nil),
-            .init(id: "claude-sonnet-4-6",           badge: "Thinking"),
-            .init(id: "claude-haiku-4-5-20251001",   badge: "Thinking"),
-        ]),
-        ("Extended Thinking", [
-            .init(id: "claude-opus-4-6",             badge: "Thinking"),
-            .init(id: "claude-opus-4-5-20251101",    badge: "Thinking"),
-            .init(id: "claude-sonnet-4-5-20250929",  badge: "Thinking"),
-            .init(id: "claude-opus-4-1-20250805",    badge: "Thinking"),
-        ]),
-        ("Claude Code shortcuts (CLI only)", [
-            .init(id: "opus",       badge: "→ Opus 4.7"),
-            .init(id: "sonnet",     badge: "→ Sonnet 4.6"),
-            .init(id: "haiku",      badge: "→ Haiku 4.5"),
-            .init(id: "best",       badge: "→ opus"),
-            .init(id: "opusplan",   badge: "Opus plan / Sonnet exec"),
-        ]),
-        ("Legacy (retiring Jun 2026)", [
-            .init(id: "claude-opus-4-20250514",      badge: "Retiring"),
-            .init(id: "claude-sonnet-4-20250514",    badge: "Retiring"),
-        ]),
-    ]
-
-    private var allKnownIDs: [String] {
-        modelGroups.flatMap { $0.models.map { $0.id } }
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,7 +14,7 @@ struct SettingsEditorView: View {
             if settings.isLoading {
                 loadingState
             } else {
-                form
+                featureList
             }
         }
         .onAppear { settings.load() }
@@ -81,15 +33,23 @@ struct SettingsEditorView: View {
 
             Spacer()
 
+            if settings.savedRecently {
+                HStack(spacing: 3) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.green)
+                    Text("Saved")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.green)
+                }
+                .transition(.opacity)
+            }
+
             if settings.hasUndo {
                 Button(action: { settings.undo() }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.uturn.backward")
-                            .font(.system(size: 10, weight: .medium))
-                        Text("Undo")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(.secondary)
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
                 .help("Restore previous settings from backup")
@@ -97,6 +57,7 @@ struct SettingsEditorView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .animation(.easeInOut(duration: 0.2), value: settings.savedRecently)
     }
 
     private func scopeButton(label: String, scope: SettingsStore.Scope) -> some View {
@@ -129,9 +90,7 @@ struct SettingsEditorView: View {
         } else {
             Menu {
                 ForEach(projects.projects) { proj in
-                    Button(proj.displayName) {
-                        settings.projectPath = proj.path
-                    }
+                    Button(proj.displayName) { settings.projectPath = proj.path }
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -179,513 +138,287 @@ struct SettingsEditorView: View {
         .padding(40)
     }
 
-    // MARK: - Main form
+    // MARK: - Feature list
 
-    private var form: some View {
+    private var featureList: some View {
         ScrollView {
             VStack(spacing: 0) {
-                modelSection
-                Divider().padding(.leading, 12)
-                permissionsSection
-                Divider().padding(.leading, 12)
-                envSection
-                Divider().padding(.leading, 12)
-                advancedSection
-                saveBar
-            }
-        }
-        .frame(maxHeight: 540)
-    }
 
-    // MARK: - Model section
-
-    private var modelSection: some View {
-        SettingsSection(
-            title: "Model",
-            icon: "cpu",
-            tooltip: "Default Claude model. Claude Code CLI accepts full IDs or shortcuts (opus/sonnet/haiku). Claude Desktop and other tools require the full model ID. Leaving blank uses each tool's built-in default."
-        ) {
-            VStack(alignment: .leading, spacing: 8) {
-                // Grouped picker
-                Picker("", selection: $settings.model) {
-                    Text("Default (built-in)").tag("")
-                    Divider()
-                    ForEach(modelGroups, id: \.header) { group in
-                        Section(group.header) {
-                            ForEach(group.models) { entry in
-                                HStack {
-                                    Text(entry.id)
-                                    if let badge = entry.badge {
-                                        Text("· \(badge)")
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .tag(entry.id)
-                            }
-                        }
-                    }
-                    // If the current value is custom (not in known list), still show it selected
-                    if !settings.model.isEmpty && !allKnownIDs.contains(settings.model) {
-                        Divider()
-                        Text(settings.model).tag(settings.model)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .fixedSize()
-
-                // Selected model info chip
-                if let entry = allKnownIDs.contains(settings.model)
-                    ? modelGroups.flatMap({ $0.models }).first(where: { $0.id == settings.model })
-                    : nil,
-                   let badge = entry.badge {
-                    HStack(spacing: 4) {
-                        Image(systemName: badge.hasPrefix("→") ? "arrow.right" : "brain")
-                            .font(.system(size: 9, weight: .semibold))
-                        Text(badge)
-                            .font(.system(size: 10, weight: .semibold))
-                    }
-                    .foregroundColor(.purple)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(Color.purple.opacity(0.10))
-                    .clipShape(Capsule())
-                }
-
-                // Custom model ID override
-                HStack(spacing: 6) {
-                    Text("Custom ID:")
+                // Section header
+                HStack(spacing: 5) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.yellow)
+                    Text("Hidden Features")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Text("— one toggle instead of editing JSON")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
-                    TextField("e.g. claude-opus-4-7", text: $settings.model)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11, design: .monospaced))
+                    Spacer()
                 }
-                .help("Type any model ID directly — overrides the picker above")
-            }
-        }
-    }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-    // MARK: - Permissions section
+                // Cards
+                VStack(spacing: 6) {
 
-    private var permissionsSection: some View {
-        SettingsSection(
-            title: "Permissions",
-            icon: "hand.raised",
-            tooltip: "Allow or deny specific tool uses. Patterns like \"Bash(git log:*)\" let Claude run git log, while denying \"Bash(rm -rf *)\" blocks dangerous commands."
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                permList(
-                    label: "Allow rules",
-                    items: $settings.allowedTools,
-                    accentColor: .green,
-                    placeholder: "Bash(git log:*)",
-                    isAdding: $showingAddAllow,
-                    newText: $newAllowRule,
-                    emptyNote: "No allow rules — all tools permitted by Claude Code defaults"
-                )
-                permList(
-                    label: "Deny rules",
-                    items: $settings.deniedTools,
-                    accentColor: .red,
-                    placeholder: "Bash(rm -rf *)",
-                    isAdding: $showingAddDeny,
-                    newText: $newDenyRule,
-                    emptyNote: "No deny rules"
-                )
-            }
-        }
-    }
+                    groupHeader("Performance")
 
-    private func permList(
-        label: String,
-        items: Binding<[String]>,
-        accentColor: Color,
-        placeholder: String,
-        isAdding: Binding<Bool>,
-        newText: Binding<String>,
-        emptyNote: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(label)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.secondary)
-                Spacer()
-                Button(action: { isAdding.wrappedValue = true }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.accentColor)
-                }
-                .buttonStyle(.plain)
-            }
-
-            if items.wrappedValue.isEmpty && !isAdding.wrappedValue {
-                Text(emptyNote)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary.opacity(0.7))
-                    .italic()
-            } else {
-                FlowLayout(spacing: 4) {
-                    ForEach(Array(items.wrappedValue.enumerated()), id: \.offset) { idx, rule in
-                        HStack(spacing: 4) {
-                            Text(rule)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(accentColor)
-                            Button(action: { items.wrappedValue.remove(at: idx) }) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(accentColor.opacity(0.7))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(accentColor.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 5))
-                    }
-                }
-            }
-
-            if isAdding.wrappedValue {
-                HStack(spacing: 6) {
-                    TextField(placeholder, text: newText)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11, design: .monospaced))
-                        .onSubmit { commitNew(to: items, text: newText, isAdding: isAdding) }
-                    Button("Add") {
-                        commitNew(to: items, text: newText, isAdding: isAdding)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    Button("Cancel") {
-                        newText.wrappedValue = ""
-                        isAdding.wrappedValue = false
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-            }
-        }
-    }
-
-    private func commitNew(
-        to items: Binding<[String]>,
-        text: Binding<String>,
-        isAdding: Binding<Bool>
-    ) {
-        let v = text.wrappedValue.trimmingCharacters(in: .whitespaces)
-        guard !v.isEmpty else { isAdding.wrappedValue = false; return }
-        items.wrappedValue.append(v)
-        text.wrappedValue     = ""
-        isAdding.wrappedValue = false
-    }
-
-    // MARK: - Env vars section
-
-    private var envSection: some View {
-        SettingsSection(
-            title: "Environment Variables",
-            icon: "terminal",
-            tooltip: "Key-value pairs injected into every Claude Code session. Useful for setting API keys or tool-specific vars."
-        ) {
-            VStack(alignment: .leading, spacing: 6) {
-                if !settings.envVars.isEmpty {
-                    VStack(spacing: 4) {
-                        ForEach(Array(settings.envVars.enumerated()), id: \.offset) { idx, pair in
-                            HStack(spacing: 6) {
-                                TextField("KEY", text: Binding(
-                                    get: { settings.envVars[idx].key },
-                                    set: { settings.envVars[idx].key = $0 }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(size: 11, design: .monospaced))
-                                .frame(maxWidth: 120)
-
-                                Text("=")
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundColor(.secondary)
-
-                                TextField("value", text: Binding(
-                                    get: { settings.envVars[idx].value },
-                                    set: { settings.envVars[idx].value = $0 }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(size: 11, design: .monospaced))
-
-                                Button(action: { settings.envVars.remove(at: idx) }) {
-                                    Image(systemName: "minus.circle")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.red.opacity(0.7))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-
-                if showingAddEnv {
-                    HStack(spacing: 6) {
-                        TextField("KEY", text: $newEnvKey)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 11, design: .monospaced))
-                            .frame(maxWidth: 120)
-                            .onSubmit { commitEnv() }
-
-                        Text("=")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(.secondary)
-
-                        TextField("value", text: $newEnvValue)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 11, design: .monospaced))
-                            .onSubmit { commitEnv() }
-
-                        Button("Add")    { commitEnv() }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        Button("Cancel") { showingAddEnv = false; newEnvKey = ""; newEnvValue = "" }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                    }
-                }
-
-                Button(action: { showingAddEnv = true }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                        Text("Add variable")
-                    }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.accentColor)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func commitEnv() {
-        let k = newEnvKey.trimmingCharacters(in: .whitespaces)
-        guard !k.isEmpty else { showingAddEnv = false; return }
-        settings.envVars.append((key: k, value: newEnvValue))
-        newEnvKey     = ""
-        newEnvValue   = ""
-        showingAddEnv = false
-    }
-
-    // MARK: - Advanced section
-
-    private var advancedSection: some View {
-        SettingsSection(
-            title: "Advanced",
-            icon: "gearshape",
-            tooltip: "Less commonly changed settings."
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                // API key helper
-                VStack(alignment: .leading, spacing: 4) {
-                    settingLabel(
-                        "API Key Helper",
-                        tip: "Path to a script that prints an Anthropic API key. Claude Code runs it instead of reading ANTHROPIC_API_KEY."
+                    FeatureCard(
+                        icon: "arrow.up.to.line.circle.fill",
+                        iconColor: Color(red: 0.2, green: 0.5, blue: 0.95),
+                        title: "Extended Output Limit",
+                        impact: "Claude sees full build logs — no more 30K char cutoff",
+                        jsonHint: "env.CLAUDE_CODE_TERMINAL_OUTPUT_LIMIT=150000",
+                        isOn: settings.extendedOutputLimit,
+                        onToggle: { settings.toggle(.extendedOutputLimit) }
                     )
-                    TextField("~/scripts/get-api-key.sh", text: $settings.apiKeyHelper)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, design: .monospaced))
-                }
 
-                Divider().opacity(0.5)
-
-                // Cleanup period
-                VStack(alignment: .leading, spacing: 4) {
-                    settingLabel(
-                        "Cleanup after (days)",
-                        tip: "How many days Claude Code keeps session data before auto-deleting. Default is 30."
+                    FeatureCard(
+                        icon: "doc.text.fill",
+                        iconColor: Color(red: 0.2, green: 0.5, blue: 0.95),
+                        title: "Large File Reading",
+                        impact: "Handle files >2K lines — no truncation in big codebases",
+                        jsonHint: "env.CLAUDE_CODE_MAX_READ_LINES=5000",
+                        isOn: settings.largeFileReading,
+                        onToggle: { settings.toggle(.largeFileReading) }
                     )
-                    TextField("30", text: $settings.cleanupPeriodDays)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 80)
-                        .font(.system(size: 12))
+
+                    groupHeader("Interface")
+
+                    FeatureCard(
+                        icon: "rectangle.expand.vertical",
+                        iconColor: Color(red: 0.45, green: 0.3, blue: 0.9),
+                        title: "Fullscreen Terminal",
+                        impact: "Smooth scrolling, no flicker in the Claude Code TUI",
+                        jsonHint: "tui: \"fullscreen\"",
+                        isOn: settings.fullscreenTerminal,
+                        onToggle: { settings.toggle(.fullscreenTerminal) }
+                    )
+
+                    FeatureCard(
+                        icon: "keyboard.fill",
+                        iconColor: Color(red: 0.45, green: 0.3, blue: 0.9),
+                        title: "Vim Keys",
+                        impact: "j/k navigation in the Claude Code terminal UI",
+                        jsonHint: "~/.claude.json: editorMode: \"vim\"",
+                        isOn: settings.vimKeys,
+                        onToggle: { settings.toggle(.vimKeys) }
+                    )
+
+                    groupHeader("History & Privacy")
+
+                    FeatureCard(
+                        icon: "calendar.badge.clock",
+                        iconColor: Color(red: 0.95, green: 0.55, blue: 0.1),
+                        title: "Keep Sessions 1 Year",
+                        impact: "Don't lose debugging history after 30 days",
+                        jsonHint: "cleanupPeriodDays: 365",
+                        isOn: settings.keepSessions1Year,
+                        onToggle: { settings.toggle(.keepSessions1Year) }
+                    )
+
+                    FeatureCard(
+                        icon: "checkmark.seal.fill",
+                        iconColor: Color(red: 0.15, green: 0.7, blue: 0.4),
+                        title: "Clean Commits",
+                        impact: "No \"🤖 Generated with Claude\" watermark in git history",
+                        jsonHint: "includeCoAuthoredBy: false",
+                        isOn: settings.cleanCommits,
+                        onToggle: { settings.toggle(.cleanCommits) }
+                    )
+
+                    FeatureCard(
+                        icon: "eye.slash.fill",
+                        iconColor: Color(red: 0.15, green: 0.7, blue: 0.4),
+                        title: "Disable Telemetry",
+                        impact: "Stop usage data from being sent to Anthropic",
+                        jsonHint: "env.CLAUDE_CODE_DISABLE_TELEMETRY=1",
+                        isOn: settings.disableTelemetry,
+                        onToggle: { settings.toggle(.disableTelemetry) }
+                    )
+
+                    groupHeader("Workflow")
+
+                    FeatureCard(
+                        icon: "checkmark.shield.fill",
+                        iconColor: Color(red: 0.0, green: 0.65, blue: 0.75),
+                        title: "Auto-Trust Project MCPs",
+                        impact: "No repeated trust prompts for .mcp.json servers",
+                        jsonHint: "enableAllProjectMcpServers: true",
+                        isOn: settings.autoTrustProjectMCPs,
+                        onToggle: { settings.toggle(.autoTrustProjectMCPs) }
+                    )
+
+                    FeatureCard(
+                        icon: "arrow.triangle.branch",
+                        iconColor: Color(red: 0.9, green: 0.4, blue: 0.15),
+                        title: "Worktree Symlinks",
+                        impact: "Reuse node_modules across git worktrees — no reinstalls",
+                        jsonHint: "worktree.symlinkDirectories: [\"node_modules\"]",
+                        isOn: settings.worktreeSymlinks,
+                        onToggle: { settings.toggle(.worktreeSymlinks) }
+                    )
                 }
+                .padding(.horizontal, 12)
 
-                Divider().opacity(0.5)
+                // Hooks footer
+                hooksCard
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
 
-                // Include co-authored-by
-                HStack(spacing: 8) {
-                    Toggle("", isOn: $settings.includeCoAuthoredBy)
-                        .toggleStyle(.switch)
-                        .scaleEffect(0.8)
-                        .frame(width: 36)
-                    VStack(alignment: .leading, spacing: 1) {
-                        settingLabel(
-                            "Include co-authored-by in commits",
-                            tip: "Appends \"Co-Authored-By: Claude\" to every git commit Claude Code makes."
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private func settingLabel(_ text: String, tip: String) -> some View {
-        HStack(spacing: 4) {
-            Text(text)
-                .font(.system(size: 12, weight: .medium))
-            Button(action: {}) {
-                Image(systemName: "questionmark.circle")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary.opacity(0.7))
-            }
-            .buttonStyle(.plain)
-            .help(tip)
-        }
-    }
-
-    // MARK: - Save bar
-
-    private var saveBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 10) {
-                // File path hint
-                HStack(spacing: 4) {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    Text(shortPath(settings.currentPath))
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                Spacer()
-
+                // Error
                 if let err = settings.lastError {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle")
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 11))
                             .foregroundColor(.red)
                         Text(err)
                             .font(.system(size: 11))
                             .foregroundColor(.red)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                        Spacer()
                     }
-                }
-
-                if settings.savedRecently {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Saved")
-                    }
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.green)
-                } else {
-                    Button(action: { settings.save() }) {
-                        HStack(spacing: 5) {
-                            if settings.isSaving {
-                                ProgressView().scaleEffect(0.6).frame(width: 12, height: 12)
-                            } else {
-                                Image(systemName: "square.and.arrow.down")
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            Text("Save Changes")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(ContentView.headerGrad)
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(settings.isSaving)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
         }
     }
 
-    private func shortPath(_ path: String) -> String {
-        let home = NSHomeDirectory()
-        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+    private func groupHeader(_ title: String) -> some View {
+        HStack {
+            Text(title.uppercased())
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.7))
+                .kerning(0.8)
+            Spacer()
+        }
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+    }
+
+    // MARK: - Hooks card
+
+    private var hooksCard: some View {
+        Button(action: openSettingsInEditor) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(NSColor.windowBackgroundColor))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "terminal.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text("Hooks")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text("ADVANCED")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                            .kerning(0.5)
+                    }
+                    Text("Auto-lint, auto-test — run shell commands after every AI response")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.up.right.square")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
+            .padding(12)
+            .background(Color(NSColor.controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .help("Opens settings.json in your default editor — add hooks manually")
+    }
+
+    private func openSettingsInEditor() {
+        let path = settings.settingsPath
+        if !FileManager.default.fileExists(atPath: path) {
+            let dir = URL(fileURLWithPath: path).deletingLastPathComponent().path
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            try? "{}".write(toFile: path, atomically: true, encoding: .utf8)
+        }
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
 }
 
-// MARK: - Section wrapper
+// MARK: - Feature card
 
-private struct SettingsSection<Content: View>: View {
-    let title: String
-    let icon: String
-    let tooltip: String
-    @ViewBuilder let content: () -> Content
+private struct FeatureCard: View {
+    let icon:      String
+    let iconColor: Color
+    let title:     String
+    let impact:    String
+    let jsonHint:  String
+    let isOn:      Bool
+    let onToggle:  () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(isOn ? 0.16 : 0.10))
+                    .frame(width: 34, height: 34)
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.accentColor)
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.primary)
-                Button(action: {}) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary.opacity(0.6))
-                }
-                .buttonStyle(.plain)
-                .help(tooltip)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(isOn ? iconColor : iconColor.opacity(0.55))
             }
-            content()
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+                Text(impact)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(jsonHint)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(isOn ? iconColor.opacity(0.75) : Color.secondary.opacity(0.45))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: Binding(get: { isOn }, set: { _ in onToggle() }))
+                .toggleStyle(.switch)
+                .scaleEffect(0.78)
+                .frame(width: 42)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-    }
-}
-
-// MARK: - Flow layout for chips
-
-private struct FlowLayout: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = computeRows(subviews: subviews, width: proposal.width ?? .infinity)
-        let height = rows.reduce(0.0) { acc, row in
-            let rowH = row.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
-            return acc + rowH + spacing
-        } - spacing
-        return CGSize(width: proposal.width ?? 0, height: max(0, height))
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let rows = computeRows(subviews: subviews, width: bounds.width)
-        var y = bounds.minY
-        for row in rows {
-            var x = bounds.minX
-            let rowH = row.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
-            for view in row {
-                let size = view.sizeThatFits(.unspecified)
-                view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-                x += size.width + spacing
-            }
-            y += rowH + spacing
-        }
-    }
-
-    private func computeRows(subviews: Subviews, width: CGFloat) -> [[LayoutSubviews.Element]] {
-        var rows: [[LayoutSubviews.Element]] = [[]]
-        var rowWidth: CGFloat = 0
-        for view in subviews {
-            let w = view.sizeThatFits(.unspecified).width
-            if rowWidth + w + spacing > width && rowWidth > 0 {
-                rows.append([view])
-                rowWidth = w + spacing
-            } else {
-                rows[rows.count - 1].append(view)
-                rowWidth += w + spacing
-            }
-        }
-        return rows
+        .padding(.vertical, 10)
+        .background(isOn ? iconColor.opacity(0.06) : Color(NSColor.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(
+                    isOn ? iconColor.opacity(0.35) : Color(NSColor.separatorColor).opacity(0.5),
+                    lineWidth: isOn ? 1.0 : 0.5
+                )
+        )
+        .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isOn)
     }
 }
