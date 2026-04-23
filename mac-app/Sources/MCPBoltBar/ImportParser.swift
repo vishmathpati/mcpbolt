@@ -26,6 +26,7 @@ enum ImportParseError: Error, LocalizedError {
     case notAnObject
     case noServersFound
     case noCommandOrUrl
+    case wizardCommand
 
     var errorDescription: String? {
         switch self {
@@ -34,6 +35,7 @@ enum ImportParseError: Error, LocalizedError {
         case .notAnObject:      return "Expected a JSON object (starting with {)."
         case .noServersFound:   return "Couldn't find any servers in that config."
         case .noCommandOrUrl:   return "Server is missing both \"command\" and \"url\"."
+        case .wizardCommand:    return "This is a wizard installer — run it in your terminal and it will write the config directly. Then hit Refresh in MCPBolt to see the new server."
         }
     }
 }
@@ -48,6 +50,13 @@ enum ImportParser {
         // Detect before JSON so a line that starts with `claude mcp add` never gets treated as text.
         if let cliServer = parseCliAdd(trimmed) {
             return .success([cliServer])
+        }
+
+        // Path 1b: Wizard command — `npx @pkg/wizard mcp add` / `bunx @pkg/wizard mcp add`.
+        // These are interactive installers that write configs directly; they can't be parsed
+        // into a server config. Return a specific, helpful error instead of the generic one.
+        if isWizardCommand(trimmed) {
+            return .failure(.wizardCommand)
         }
 
         // Path 2: JSON. Strip JSONC comments first so Claude Desktop–style pastes work.
@@ -228,6 +237,22 @@ enum ImportParser {
         }
         if !current.isEmpty { tokens.append(current) }
         return tokens
+    }
+
+    // Returns true for `npx <pkg> mcp add [...]` / `bunx <pkg> mcp add [...]` patterns.
+    // These are wizard-style installers, not pasteable configs.
+    private static func isWizardCommand(_ input: String) -> Bool {
+        let tokens = shellSplit(input)
+        guard tokens.count >= 4 else { return false }
+        let first = tokens[0].lowercased()
+        guard first == "npx" || first == "bunx" else { return false }
+        // Look for "mcp add" anywhere after the first token
+        for i in 1..<(tokens.count - 1) {
+            if tokens[i].lowercased() == "mcp" && tokens[i + 1].lowercased() == "add" {
+                return true
+            }
+        }
+        return false
     }
 
     /// Sanitizes a pasted name: lowercase, strip weird chars, collapse hyphens.
