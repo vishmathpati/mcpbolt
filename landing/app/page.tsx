@@ -8,17 +8,22 @@ const features = [
   {
     icon: "⚡",
     title: "One‑click install",
-    body: "Add a server to Claude, Cursor, VS Code, Windsurf, Zed, and more in a single action. No JSON editing.",
+    body: "Add a server to Claude, Cursor, VS Code, Windsurf, Zed, Codex, and more in a single action. No JSON editing.",
+  },
+  {
+    icon: "🟢",
+    title: "Enable / disable toggle",
+    body: "Flip any server on or off per app without deleting it. Green = running, red = paused. Config is preserved and restored instantly.",
+  },
+  {
+    icon: "🚦",
+    title: "Always‑on health status",
+    body: "Green, amber, red. Auto‑refreshes every minute. See which servers are reachable or broken — always, not just on demand.",
   },
   {
     icon: "🔁",
     title: "Sync across apps",
-    body: "Copy a server to every other tool. MCPBolt handles the per‑app config shape for you.",
-  },
-  {
-    icon: "🗑️",
-    title: "Remove from everywhere",
-    body: "Uninstall a server from every tool at once, or just one. You're always in control.",
+    body: "Copy a server to every other tool in one action. MCPBolt handles the per‑app config shape for you.",
   },
   {
     icon: "✏️",
@@ -26,19 +31,19 @@ const features = [
     body: "Change command, args, and env with a real form. No terminal, no backslash escaping.",
   },
   {
-    icon: "🚦",
-    title: "Live health checks",
-    body: "Green, amber, red. See which servers are installed, reachable, or broken — at a glance.",
+    icon: "🗑️",
+    title: "Remove from everywhere",
+    body: "Uninstall a server from every tool at once, or just one. You're always in control.",
   },
   {
-    icon: "🔄",
-    title: "Restart host apps",
-    body: "After a config change MCPBolt can relaunch Claude, Cursor, or VS Code so changes take effect.",
+    icon: "📋",
+    title: "Smart paste & import",
+    body: "Paste JSON configs, CLI commands like `claude mcp add`, or detect wizard installers — MCPBolt tells you exactly what to do with each.",
   },
   {
-    icon: "📦",
-    title: "Import from URL",
-    body: "Paste a link to a JSON config, preview it, then apply to any supported app.",
+    icon: "📊",
+    title: "Coverage matrix",
+    body: "See every server side‑by‑side across all tools. Hide columns you don't care about. Gaps in coverage are obvious at a glance.",
   },
   {
     icon: "🗂️",
@@ -51,14 +56,9 @@ const features = [
     body: "MCPBolt scans your Mac for Claude Code and Codex CLI projects automatically — no manual setup needed.",
   },
   {
-    icon: "📊",
-    title: "Coverage matrix",
-    body: "See every server side‑by‑side across all your tools. Gaps in coverage are obvious at a glance.",
-  },
-  {
-    icon: "👀",
-    title: "Diff preview",
-    body: "See exactly which lines change before you commit. No surprise writes to your config files.",
+    icon: "🔄",
+    title: "Restart host apps",
+    body: "After a config change MCPBolt can relaunch Claude, Cursor, or VS Code so changes take effect immediately.",
   },
   {
     icon: "↩️",
@@ -79,15 +79,15 @@ const features = [
 
 const compat = [
   { name: "Claude Desktop", dot: "#d97757" },
-  { name: "Cursor", dot: "#000000" },
-  { name: "VS Code", dot: "#1e88e5" },
-  { name: "Windsurf", dot: "#009688" },
-  { name: "Zed", dot: "#084ccf" },
-  { name: "Claude Code", dot: "#d97757" },
-  { name: "Codex CLI", dot: "#10a37f" },
-  { name: "opencode", dot: "#8b5cf6" },
-  { name: "Roo", dot: "#e91e63" },
-  { name: "Gemini CLI", dot: "#4285f4" },
+  { name: "Claude Code",    dot: "#d97757" },
+  { name: "Cursor",         dot: "#7c5cbf" },
+  { name: "Codex CLI",      dot: "#10a37f" },
+  { name: "VS Code",        dot: "#1e88e5" },
+  { name: "Windsurf",       dot: "#009688" },
+  { name: "Zed",            dot: "#084ccf" },
+  { name: "Gemini",         dot: "#4285f4" },
+  { name: "opencode",       dot: "#e8941e" },
+  { name: "Roo",            dot: "#e91e63" },
 ];
 
 const security = [
@@ -107,6 +107,14 @@ const security = [
     title: "Open source",
     body: "MIT licensed. Read the code, build it yourself, fork it. Trust by inspection.",
   },
+];
+
+// Mock server rows shown in the hero screenshot
+const mockServers = [
+  { name: "context7",  health: "#22c55e", on: true  },
+  { name: "posthog",   health: "#f97316", on: true  },
+  { name: "supabase",  health: "#22c55e", on: true  },
+  { name: "magic",     health: "rgba(255,255,255,0.18)", on: false },
 ];
 
 export default function Page() {
@@ -132,7 +140,7 @@ export default function Page() {
       <header id="top" className="hero container">
         <div className="tag">
           <span className="tag-dot" />
-          <span>v0.5.8 — Projects, auto‑discovery & Codex CLI</span>
+          <span>v0.5.14 — Toggles, live health &amp; Gemini</span>
         </div>
         <h1>
           One‑click MCP servers<br />
@@ -140,7 +148,8 @@ export default function Page() {
         </h1>
         <p className="sub">
           A tiny menu bar app that installs, syncs, and manages Model Context Protocol servers
-          across Claude Desktop, Cursor, VS Code, Windsurf, Zed, and more. Local. Free. Open source.
+          across Claude Desktop, Cursor, VS Code, Windsurf, Zed, Codex, Gemini, and more.
+          Local. Free. Open source.
         </p>
         <div className="cta-row">
           <a href={DOWNLOAD_URL} className="btn btn-primary" target="_blank" rel="noreferrer">
@@ -168,64 +177,115 @@ export default function Page() {
 
       {/* Screenshot (simulated dashboard) */}
       <div className="shot-wrap container">
-        <div className="shot-card" style={{ maxWidth: 640 }}>
+        <div className="shot-card" style={{ maxWidth: 520 }}>
+
+          {/* Window header */}
           <div className="shot-header">
             <div className="bolt-round">⚡</div>
             <div className="shot-title">mcpbolt</div>
             <div style={{ flex: 1 }} />
-            <div className="pill">5 apps · 8 servers</div>
+            <div className="pill">32 servers</div>
+            <div className="pill">9 apps</div>
           </div>
+
           {/* Tab bar */}
-          <div style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
             {["By App", "Coverage", "Projects", "Settings"].map((t, i) => (
               <div key={t} style={{
                 padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600,
                 background: i === 0 ? "linear-gradient(135deg,#f4c01e,#e8a000)" : "rgba(255,255,255,0.07)",
-                color: i === 0 ? "#111" : "rgba(255,255,255,0.55)"
+                color: i === 0 ? "#111" : "rgba(255,255,255,0.45)"
               }}>{t}</div>
             ))}
           </div>
-          <div className="shot-body">
-            <div className="tool-card">
-              <div className="tool-icon" style={{ background: "#d97757" }}>C</div>
-              <div className="tool-meta">
-                <div className="tool-name">Claude Desktop</div>
-                <div className="tool-sub">3 servers · healthy</div>
+
+          {/* Tool card — Claude Desktop expanded */}
+          <div style={{ padding: "10px 12px 6px" }}>
+            <div style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(217,119,87,0.28)",
+              borderRadius: 12,
+              overflow: "hidden",
+            }}>
+              {/* Card header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px" }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 8,
+                  background: "#d97757",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 18, fontWeight: 700, color: "#fff",
+                }}>✦</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.92)" }}>Claude Desktop</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>4 servers installed</div>
+                </div>
+                <div style={{ flex: 1 }} />
+                <div style={{
+                  fontSize: 11, fontWeight: 700, color: "#d97757",
+                  padding: "2px 8px", borderRadius: 20,
+                  background: "rgba(217,119,87,0.14)",
+                }}>4</div>
+                <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>⌄</div>
               </div>
-              <div className="tool-count">3</div>
+
+              {/* Divider */}
+              <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginLeft: 58 }} />
+
+              {/* Server rows */}
+              {mockServers.map((s, i) => (
+                <div key={s.name} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "6px 12px 6px 58px",
+                  borderTop: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none",
+                }}>
+                  {/* Toggle pill */}
+                  <div style={{
+                    width: 28, height: 16, borderRadius: 8,
+                    background: s.on ? "#22c55e" : "#ef4444",
+                    display: "flex", alignItems: "center",
+                    justifyContent: s.on ? "flex-end" : "flex-start",
+                    padding: "0 2px", flexShrink: 0,
+                  }}>
+                    <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#fff" }} />
+                  </div>
+                  {/* Health dot */}
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: s.health, flexShrink: 0 }} />
+                  {/* Name */}
+                  <div style={{
+                    fontSize: 12, fontWeight: 500,
+                    color: s.on ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.35)",
+                    textDecoration: s.on ? "none" : "line-through",
+                    flex: 1,
+                  }}>{s.name}</div>
+                  {/* Local chip */}
+                  <div style={{
+                    fontSize: 10, fontWeight: 600,
+                    padding: "1px 7px", borderRadius: 5,
+                    background: "rgba(255,255,255,0.07)",
+                    color: "rgba(255,255,255,0.4)",
+                  }}>Local</div>
+                </div>
+              ))}
             </div>
-            <div className="tool-card">
-              <div className="tool-icon" style={{ background: "#111" }}>⌘</div>
-              <div className="tool-meta">
-                <div className="tool-name">Cursor</div>
-                <div className="tool-sub">2 servers · 1 needs auth</div>
+          </div>
+
+          {/* Health legend */}
+          <div style={{
+            display: "flex", gap: 14, alignItems: "center",
+            padding: "7px 14px",
+            borderTop: "1px solid rgba(255,255,255,0.06)",
+          }}>
+            {([
+              ["#22c55e", "Reachable"],
+              ["#f97316", "Degraded"],
+              ["#ef4444", "Unreachable"],
+              ["rgba(255,255,255,0.18)", "Not checked"],
+            ] as [string, string][]).map(([color, label]) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
+                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.38)" }}>{label}</span>
               </div>
-              <div className="tool-count">2</div>
-            </div>
-            <div className="tool-card">
-              <div className="tool-icon" style={{ background: "#1e88e5" }}>VS</div>
-              <div className="tool-meta">
-                <div className="tool-name">VS Code</div>
-                <div className="tool-sub">1 server · healthy</div>
-              </div>
-              <div className="tool-count">1</div>
-            </div>
-            <div className="tool-card">
-              <div className="tool-icon" style={{ background: "#10a37f" }}>✦</div>
-              <div className="tool-meta">
-                <div className="tool-name">Codex CLI</div>
-                <div className="tool-sub">2 servers · healthy</div>
-              </div>
-              <div className="tool-count">2</div>
-            </div>
-            <div className="tool-card">
-              <div className="tool-icon" style={{ background: "#084ccf" }}>Z</div>
-              <div className="tool-meta">
-                <div className="tool-name">Zed</div>
-                <div className="tool-sub">1 server · healthy</div>
-              </div>
-              <div className="tool-count">1</div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
