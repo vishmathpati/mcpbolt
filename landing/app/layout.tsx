@@ -26,7 +26,8 @@ export const metadata: Metadata = {
       "Install, sync and manage MCP servers across every major AI coding tool from one menu bar app.",
   },
   icons: {
-    icon: "/favicon.svg",
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    shortcut: "/favicon.svg",
   },
 };
 
