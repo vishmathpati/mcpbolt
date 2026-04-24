@@ -296,6 +296,77 @@ struct ImportSheet: View {
 
                     Divider().padding(.vertical, 2)
 
+                    // Scope picker — shown before the app list
+                    sectionLabel("Install to")
+                    HStack(spacing: 6) {
+                        Button(action: { useProjectScope = false }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 11))
+                                Text("Global")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .foregroundColor(!useProjectScope ? .white : .primary)
+                            .background(!useProjectScope ? Color.accentColor : Color(NSColor.controlBackgroundColor))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: {
+                            useProjectScope = true
+                            if projectRoot == nil { pickProjectRoot() }
+                        }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 11))
+                                Text(useProjectScope && projectRoot != nil
+                                    ? URL(fileURLWithPath: projectRoot!).lastPathComponent
+                                    : "Add to project")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .foregroundColor(useProjectScope ? .white : .primary)
+                            .background(useProjectScope ? Color.accentColor : Color(NSColor.controlBackgroundColor))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+                    }
+                    .padding(3)
+                    .background(Color(NSColor.windowBackgroundColor).opacity(0.4))
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+
+                    if useProjectScope {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if let root = projectRoot {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "folder")
+                                        .foregroundColor(.secondary)
+                                        .font(.system(size: 11))
+                                    Text(root)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Spacer()
+                                    Button("Change…", action: pickProjectRoot)
+                                        .buttonStyle(.plain)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.accentColor)
+                                }
+                            }
+                            Text("Only Claude Code, Cursor, VS Code, and Roo support project configs.")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Divider().padding(.vertical, 2)
+
                     // Tool picker section
                     HStack {
                         sectionLabel("Install to which apps?")
@@ -316,40 +387,6 @@ struct ImportSheet: View {
                                 supported: ConfigWriter.supportsNativeWrite(toolID: tool.toolID),
                                 onToggle: { toggle(tool.toolID) }
                             )
-                        }
-                    }
-
-                    Divider().padding(.vertical, 2)
-
-                    // Project scope
-                    sectionLabel("Scope")
-                    VStack(alignment: .leading, spacing: 6) {
-                        Toggle(isOn: $useProjectScope) {
-                            Text("Write to a project folder instead of user config")
-                                .font(.system(size: 12))
-                        }
-                        .toggleStyle(.checkbox)
-
-                        if useProjectScope {
-                            HStack(spacing: 8) {
-                                Image(systemName: "folder")
-                                    .foregroundColor(.secondary)
-                                Text(projectRoot ?? "No folder chosen")
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundColor(projectRoot == nil ? .secondary : .primary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Spacer()
-                                Button(action: pickProjectRoot) {
-                                    Text(projectRoot == nil ? "Choose\u{2026}" : "Change\u{2026}")
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(.accentColor)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            Text("Only tools that support project-scope configs will use the folder: Cursor, VS Code, Roo, Claude Code.")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
                         }
                     }
 
@@ -577,12 +614,7 @@ struct ImportSheet: View {
                 if s.name.isEmpty { s.name = "server" }
                 return s
             }
-            // Default: select all natively-supported tools
-            selectedTools = Set(
-                store.detectedTools
-                    .filter { ConfigWriter.supportsNativeWrite(toolID: $0.toolID) }
-                    .map    { $0.toolID }
-            )
+            selectedTools = []
             withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
                 stage = .preview
             }
@@ -749,14 +781,24 @@ private struct ToolPickerRow: View {
 
         Button(action: { if supported { onToggle() } }) {
             HStack(spacing: 10) {
-                // Icon tile
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(c.opacity(0.14))
-                        .frame(width: 26, height: 26)
-                    Image(systemName: ToolPalette.icon(for: tool.toolID))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(c)
+                // Icon tile — real app icon when installed, SF Symbol fallback
+                Group {
+                    if let appImg = ToolPalette.appImage(for: tool.toolID) {
+                        Image(nsImage: appImg)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 26, height: 26)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(c.opacity(0.14))
+                                .frame(width: 26, height: 26)
+                            Image(systemName: ToolPalette.icon(for: tool.toolID))
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(c)
+                        }
+                    }
                 }
 
                 Text(tool.label)
