@@ -74,17 +74,17 @@ const features = [
   },
 ];
 
-const compat: { name: string; bg: string; icon?: string; letter?: string }[] = [
-  { name: "Claude Desktop", bg: "#d97757", icon: "https://cdn.simpleicons.org/anthropic/ffffff" },
-  { name: "Claude Code",    bg: "#d97757", icon: "https://cdn.simpleicons.org/anthropic/ffffff" },
-  { name: "Cursor",         bg: "#7c5cbf", icon: "https://cdn.simpleicons.org/cursor/ffffff" },
-  { name: "Codex CLI",      bg: "#10a37f", icon: "https://cdn.simpleicons.org/openai/ffffff" },
-  { name: "VS Code",        bg: "#1e88e5", icon: "https://cdn.simpleicons.org/visualstudiocode/ffffff" },
-  { name: "Windsurf",       bg: "#009688", icon: "https://cdn.simpleicons.org/codeium/ffffff" },
-  { name: "Zed",            bg: "#084ccf", icon: "https://cdn.simpleicons.org/zed/ffffff" },
-  { name: "Gemini CLI",     bg: "#4285f4", icon: "https://cdn.simpleicons.org/googlegemini/ffffff" },
-  { name: "opencode",       bg: "#e8941e", letter: "oc" },
-  { name: "Roo",            bg: "#e91e63", letter: "R" },
+const compat: { name: string; icon: string }[] = [
+  { name: "Claude Desktop", icon: "/icons/claude.png" },
+  { name: "Claude Code",    icon: "/icons/claude.png" },
+  { name: "Cursor",         icon: "/icons/cursor.png" },
+  { name: "Codex CLI",      icon: "/icons/openai.png" },
+  { name: "VS Code",        icon: "/icons/vscode.png" },
+  { name: "Windsurf",       icon: "/icons/windsurf.png" },
+  { name: "Zed",            icon: "/icons/zed.png" },
+  { name: "Gemini CLI",     icon: "/icons/gemini.svg" },
+  { name: "opencode",       icon: "/icons/opencode.png" },
+  { name: "Roo",            icon: "/icons/roo.png" },
 ];
 
 const security = [
@@ -561,11 +561,8 @@ export default function Page() {
           <div className="compat-row">
             {compat.map((c) => (
               <div key={c.name} className="compat-chip">
-                <span className="compat-logo" style={{ background: c.bg }}>
-                  {c.icon
-                    ? <img src={c.icon} width={16} height={16} alt={c.name} style={{ display: "block" }} />
-                    : <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{c.letter}</span>
-                  }
+                <span className="compat-logo">
+                  <img src={c.icon} width={28} height={28} alt={c.name} style={{ display: "block", borderRadius: 6, objectFit: "contain" }} />
                 </span>
                 <span>{c.name}</span>
               </div>
