@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { SiteNav } from "./components/SiteNav";
 import { SiteFooter } from "./components/SiteFooter";
+
+const GA_ID = "G-GJK1E9W9L7";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://mcpbolt.app"),
@@ -39,6 +42,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
+        <Script id="gtag-init" strategy="afterInteractive">{`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', '${GA_ID}');
+        `}</Script>
         <SiteNav />
         <main>{children}</main>
         <SiteFooter />
