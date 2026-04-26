@@ -16,6 +16,15 @@ const tools = [
     tags: ["Claude Desktop", "Cursor", "VS Code", "Zed", "Codex", "Continue"],
     badge: "Free · Runs in your browser",
   },
+  {
+    href: "/tools/validator",
+    icon: "✅",
+    title: "MCP Config Validator",
+    description:
+      "Paste any MCP JSON config and get an instant report: format check, missing fields, empty API keys, insecure URLs, and common security issues.",
+    tags: ["Structure", "API keys", "Security", "Format"],
+    badge: "Free · Runs in your browser",
+  },
 ];
 
 export default function ToolsPage() {
@@ -65,26 +74,13 @@ export default function ToolsPage() {
             </Link>
           ))}
 
-          {/* Coming soon slot */}
           <div className="tool-hub-card tool-hub-card--dim">
             <div className="tool-hub-icon">🔍</div>
             <div>
-              <h2 className="tool-hub-title">Config Validator</h2>
+              <h2 className="tool-hub-title">MCP Server Inspector</h2>
               <p className="tool-hub-desc">
-                Validate any MCP config file against the spec. Catch common mistakes before they
-                break your setup.
-              </p>
-              <div className="tool-hub-badge">Coming soon</div>
-            </div>
-          </div>
-
-          <div className="tool-hub-card tool-hub-card--dim">
-            <div className="tool-hub-icon">📋</div>
-            <div>
-              <h2 className="tool-hub-title">Format Detector</h2>
-              <p className="tool-hub-desc">
-                Not sure what format your config is in? Paste it and instantly identify whether
-                it is Claude Desktop, VS Code, Zed, or another format.
+                Connect to any Streamable HTTP MCP server and list all its tools, inputs, and
+                example calls — without writing a line of code.
               </p>
               <div className="tool-hub-badge">Coming soon</div>
             </div>

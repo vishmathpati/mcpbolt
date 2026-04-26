@@ -38,6 +38,7 @@ const DOC_SECTIONS: Array<{ title: string; items: Array<{ label: string; href: s
     title: "Reference",
     items: [
       { label: "Supported apps", href: "/docs/apps" },
+      { label: "Windows guide", href: "/docs/windows" },
       { label: "Troubleshooting", href: "/docs/troubleshooting" },
       { label: "FAQ", href: "/docs/faq" },
       { label: "Security", href: "/docs/security" },

@@ -6,6 +6,8 @@ import { TopMcpServers2026 } from "./content/top-mcp-servers-2026";
 import { McpToolComparison } from "./content/mcp-tool-comparison";
 import { LocalFirstWhyItMatters } from "./content/local-first-why-it-matters";
 import { McpMarketLandscape } from "./content/mcp-market-landscape";
+import { McpWindowsGuide } from "./content/mcp-windows-guide";
+import { McpSecurityRedFlags } from "./content/mcp-security-red-flags";
 
 export const POST_CONTENT: Record<string, ComponentType> = {
   "mcp-config-hell": McpConfigHell,
@@ -15,4 +17,6 @@ export const POST_CONTENT: Record<string, ComponentType> = {
   "mcp-tool-comparison": McpToolComparison,
   "local-first-why-it-matters": LocalFirstWhyItMatters,
   "mcp-market-landscape": McpMarketLandscape,
+  "mcp-windows-guide": McpWindowsGuide,
+  "mcp-security-red-flags": McpSecurityRedFlags,
 };

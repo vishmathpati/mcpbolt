@@ -37,8 +37,10 @@ export function SiteFooter() {
             <div className="footer-title">Tools</div>
             <Link href="/tools">All tools</Link>
             <Link href="/tools/converter">Config converter</Link>
+            <Link href="/tools/validator">Config validator</Link>
             <Link href="/docs/install-local">Local server guide</Link>
             <Link href="/docs/install-streamable">Streamable HTTP guide</Link>
+            <Link href="/docs/windows">Windows guide</Link>
           </div>
           <div className="footer-col">
             <div className="footer-title">Learn</div>

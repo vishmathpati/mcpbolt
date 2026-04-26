@@ -72,6 +72,24 @@ export const POSTS: BlogPost[] = [
     category: "Deep dive",
     readTime: "11 min",
   },
+  {
+    slug: "mcp-windows-guide",
+    title: "MCP on Windows: stop fighting with npx",
+    description:
+      "The three root causes behind every Windows MCP failure — wrong shell, broken PATH, bad npx resolution — and the exact fixes for each one. Includes WSL setup, cmd wrapper configs, and a decoded error message table.",
+    date: "2026-04-27",
+    category: "Guide",
+    readTime: "7 min",
+  },
+  {
+    slug: "mcp-security-red-flags",
+    title: "5 MCP security red flags to check before you install",
+    description:
+      "An MCP server runs as a process with your credentials and file access. Here are five warning signs — unverified publishers, broad file access, HTTP endpoints, hardcoded secrets, unpinned versions — and what to do about each one.",
+    date: "2026-04-27",
+    category: "Deep dive",
+    readTime: "6 min",
+  },
 ];
 
 export function getPost(slug: string): BlogPost | undefined {

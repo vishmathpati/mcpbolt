@@ -1491,3 +1491,42 @@ footer a:hover { color: var(--fg); }
   background: transparent;
   border: none;
 }
+
+/* ---------- Validator ---------- */
+
+.validator-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+
+.validator-badge--pass {
+  background: rgba(55, 214, 122, 0.1);
+  border-color: rgba(55, 214, 122, 0.3);
+  color: var(--ok);
+}
+
+.validator-badge--warn {
+  background: rgba(255, 176, 32, 0.1);
+  border-color: rgba(255, 176, 32, 0.3);
+  color: var(--warn);
+}
+
+.validator-badge--fail {
+  background: rgba(255, 84, 84, 0.1);
+  border-color: rgba(255, 84, 84, 0.3);
+  color: var(--bad);
+}
+
+.validator-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
