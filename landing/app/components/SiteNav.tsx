@@ -11,6 +11,7 @@ export function SiteNav() {
         </Link>
         <div className="nav-links">
           <Link href="/features">Features</Link>
+          <Link href="/tools">Tools</Link>
           <Link href="/docs">Docs</Link>
           <Link href="/blog">Blog</Link>
           <Link href="/compare">Compare</Link>

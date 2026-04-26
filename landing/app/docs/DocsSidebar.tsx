@@ -13,6 +13,13 @@ const DOC_SECTIONS: Array<{ title: string; items: Array<{ label: string; href: s
     ],
   },
   {
+    title: "MCP server types",
+    items: [
+      { label: "Local (stdio) servers", href: "/docs/install-local" },
+      { label: "Streamable HTTP servers", href: "/docs/install-streamable" },
+    ],
+  },
+  {
     title: "CLI",
     items: [
       { label: "CLI reference", href: "/docs/cli" },

@@ -34,6 +34,13 @@ export function SiteFooter() {
             <Link href="/docs/faq">FAQ</Link>
           </div>
           <div className="footer-col">
+            <div className="footer-title">Tools</div>
+            <Link href="/tools">All tools</Link>
+            <Link href="/tools/converter">Config converter</Link>
+            <Link href="/docs/install-local">Local server guide</Link>
+            <Link href="/docs/install-streamable">Streamable HTTP guide</Link>
+          </div>
+          <div className="footer-col">
             <div className="footer-title">Learn</div>
             <Link href="/blog">Blog</Link>
             <Link href="/blog/what-is-mcp">What is MCP?</Link>
