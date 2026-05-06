@@ -45,7 +45,7 @@ cask "mcpboltbar" do
   version "$VERSION"
   sha256 "$SHA"
 
-  url "https://github.com/vishmathpati/mcpbolt/releases/download/mac-v\#{version}/MCPBoltBar.zip"
+  url "https://github.com/vishmathpati/mcpbolt/releases/download/mac-v#{version}/MCPBoltBar.zip"
   name "MCPBoltBar"
   desc "Menu bar app for managing MCP servers across AI coding tools"
   homepage "https://github.com/vishmathpati/mcpbolt"
@@ -65,7 +65,7 @@ cask "mcpboltbar" do
   # so Gatekeeper doesn't block first launch.
   postflight do
     system_command "/usr/bin/xattr",
-                   args: ["-cr", "\#{appdir}/MCPBoltBar.app"],
+                   args: ["-cr", "#{appdir}/MCPBoltBar.app"],
                    sudo: false
   end
 
